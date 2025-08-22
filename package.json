@@ -1,0 +1,11 @@
+
+{
+  "name": "jnnce-1",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node jnnce-1/server/index.js",
+    "install-server": "cd jnnce-1/server && npm install",
+    "start-server": "cd jnnce-1/server && npm start"
+  }
+}

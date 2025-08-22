@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tesseract - 3D Gesture Control Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #533483 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated background particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            animation: float 6s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0; }
+            50% { transform: translateY(-20px) rotate(180deg); opacity: 1; }
+        }
+
+        /* Header */
+        .header {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            padding: 60px 20px 40px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            font-size: 4rem;
+            font-weight: 900;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57);
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 3s ease-in-out infinite;
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 30px;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.6);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Main container */
+        .main-container {
+            position: relative;
+            z-index: 10;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 30px;
+            margin-top: 40px;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Card styles */
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 40px 30px;
+            text-align: center;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            min-height: 350px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            animation: cardFloat 6s ease-in-out infinite;
+        }
+
+        .card:nth-child(1) { animation-delay: 0s; }
+        .card:nth-child(2) { animation-delay: 1.5s; }
+        .card:nth-child(3) { animation-delay: 3s; }
+        .card:nth-child(4) { animation-delay: 4.5s; }
+
+        @keyframes cardFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .card:hover::before {
+            left: 100%;
+        }
+
+        .card:hover {
+            transform: translateY(-15px) scale(1.02) rotateY(5deg);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.3);
+            animation-play-state: paused;
+        }
+
+        /* Individual card themes */
+        .card.education {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(78, 205, 196, 0.1));
+            border-color: rgba(255, 107, 107, 0.3);
+        }
+
+        .card.medical {
+            background: linear-gradient(135deg, rgba(69, 183, 209, 0.1), rgba(150, 206, 180, 0.1));
+            border-color: rgba(69, 183, 209, 0.3);
+        }
+
+        .card.architecture {
+            background: linear-gradient(135deg, rgba(254, 202, 87, 0.1), rgba(255, 107, 107, 0.1));
+            border-color: rgba(254, 202, 87, 0.3);
+        }
+
+        .card.science {
+            background: linear-gradient(135deg, rgba(150, 206, 180, 0.1), rgba(83, 52, 131, 0.1));
+            border-color: rgba(150, 206, 180, 0.3);
+        }
+
+        /* Card icons */
+        .card-icon {
+            font-size: 4rem;
+            margin-bottom: 25px;
+            display: block;
+            transition: all 0.3s ease;
+            animation: iconPulse 3s ease-in-out infinite;
+        }
+
+        .card:nth-child(1) .card-icon { animation-delay: 0s; }
+        .card:nth-child(2) .card-icon { animation-delay: 0.75s; }
+        .card:nth-child(3) .card-icon { animation-delay: 1.5s; }
+        .card:nth-child(4) .card-icon { animation-delay: 2.25s; }
+
+        @keyframes iconPulse {
+            0%, 100% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.05); filter: brightness(1.2); }
+        }
+
+        .card:hover .card-icon {
+            transform: scale(1.1) rotate(5deg);
+            animation-play-state: paused;
+        }
+
+        .education .card-icon { color: #ff6b6b; }
+        .medical .card-icon { color: #45b7d1; }
+        .architecture .card-icon { color: #feca57; }
+        .science .card-icon { color: #96ceb4; }
+
+        /* Card content */
+        .card-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover .card-title {
+            transform: scale(1.05);
+        }
+
+        .card-description {
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.6;
+            margin-bottom: 25px;
+            font-size: 1rem;
+        }
+
+        .card-button {
+            background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+            animation: buttonGlow 4s ease-in-out infinite;
+        }
+
+        .card:nth-child(1) .card-button { animation-delay: 0s; }
+        .card:nth-child(2) .card-button { animation-delay: 1s; }
+        .card:nth-child(3) .card-button { animation-delay: 2s; }
+        .card:nth-child(4) .card-button { animation-delay: 3s; }
+
+        @keyframes buttonGlow {
+            0%, 100% { box-shadow: 0 0 5px rgba(255, 255, 255, 0.1); }
+            50% { box-shadow: 0 0 20px rgba(255, 255, 255, 0.3); }
+        }
+
+        .card-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .card-button:hover::before {
+            left: 100%;
+        }
+
+        .card-button:hover {
+            background: linear-gradient(45deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            animation-play-state: paused;
+        }
+
+        /* Floating elements */
+        .floating-element {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: float 8s infinite ease-in-out;
+        }
+
+        /* Additional floating shapes */
+        .floating-shape {
+            position: absolute;
+            opacity: 0.3;
+            animation: floatShape 12s infinite ease-in-out;
+        }
+
+        .floating-shape.triangle {
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-bottom: 35px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .floating-shape.square {
+            width: 30px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            transform: rotate(45deg);
+        }
+
+        .floating-shape.circle {
+            width: 25px;
+            height: 25px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        @keyframes floatShape {
+            0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.3; }
+            50% { transform: translateY(-30px) rotate(180deg); opacity: 0.6; }
+        }
+
+        .floating-element:nth-child(1) {
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .floating-element:nth-child(2) {
+            top: 20%;
+            right: 15%;
+            animation-delay: 2s;
+        }
+
+        .floating-element:nth-child(3) {
+            bottom: 30%;
+            left: 5%;
+            animation-delay: 4s;
+        }
+
+        .floating-element:nth-child(4) {
+            bottom: 20%;
+            right: 10%;
+            animation-delay: 6s;
+        }
+
+        /* Position additional floating shapes */
+        .floating-shape:nth-child(5) {
+            top: 15%;
+            left: 20%;
+            animation-delay: 1s;
+        }
+
+        .floating-shape:nth-child(6) {
+            top: 60%;
+            right: 25%;
+            animation-delay: 3s;
+        }
+
+        .floating-shape:nth-child(7) {
+            bottom: 40%;
+            left: 15%;
+            animation-delay: 5s;
+        }
+
+        .floating-shape:nth-child(8) {
+            top: 30%;
+            right: 5%;
+            animation-delay: 7s;
+        }
+
+        /* Navigation */
+        .nav-button {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .nav-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Responsive design */
+        @media (max-width: 1200px) {
+            .cards-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 25px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 3rem;
+            }
+            
+            .tagline {
+                font-size: 1.2rem;
+            }
+            
+            .cards-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .card {
+                min-height: 300px;
+                padding: 30px 20px;
+            }
+            
+            .nav-button {
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 0.8s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .loading:nth-child(1) { animation-delay: 0.1s; }
+        .loading:nth-child(2) { animation-delay: 0.2s; }
+        .loading:nth-child(3) { animation-delay: 0.3s; }
+        .loading:nth-child(4) { animation-delay: 0.4s; }
+
+        /* Enhanced particle effects */
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            animation: float 6s infinite ease-in-out;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .particle:nth-child(3n) {
+            animation-duration: 8s;
+            animation-delay: 2s;
+        }
+
+        .particle:nth-child(3n+1) {
+            animation-duration: 10s;
+            animation-delay: 4s;
+        }
+
+        .particle:nth-child(3n+2) {
+            animation-duration: 12s;
+            animation-delay: 6s;
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated background particles -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Floating elements -->
+    <div class="floating-element"></div>
+    <div class="floating-element"></div>
+    <div class="floating-element"></div>
+    <div class="floating-element"></div>
+    
+    <!-- Additional floating shapes -->
+    <div class="floating-shape triangle"></div>
+    <div class="floating-shape square"></div>
+    <div class="floating-shape circle"></div>
+    <div class="floating-shape triangle"></div>
+    <!-- Header -->
+    <header class="header">
+        <h1 class="logo">TESSERACT</h1>
+        <p class="tagline">Revolutionary 3D Gesture Control Platform</p>
+        <p class="subtitle">Experience the future of human-computer interaction with our cutting-edge hand tracking technology. Control 3D objects with natural gestures in real-time.</p>
+    </header>
+
+    <!-- Main content -->
+    <main class="main-container">
+        <div class="cards-grid">
+            <!-- Education Card -->
+            <div class="card education loading">
+                <span class="card-icon">🎓</span>
+                <h3 class="card-title">Education</h3>
+                <p class="card-description">Transform learning with interactive 3D models. Students can explore complex concepts through hands-on manipulation of virtual objects, making education more engaging and effective.</p>
+                <a href="app.html" class="card-button">Explore Learning</a>
+            </div>
+
+            <!-- Medical Card -->
+            <div class="card medical loading">
+                <span class="card-icon">🏥</span>
+                <h3 class="card-title">Medical</h3>
+                <p class="card-description">Revolutionize medical training and visualization. Surgeons can practice procedures on 3D anatomical models, and medical students can explore human anatomy in unprecedented detail.</p>
+                <a href="app.html" class="card-button">Medical Solutions</a>
+            </div>
+
+            <!-- Architecture Card -->
+            <div class="card architecture loading">
+                <span class="card-icon">🏗️</span>
+                <h3 class="card-title">Architecture</h3>
+                <p class="card-description">Design and visualize architectural projects in 3D space. Architects can manipulate building models with natural gestures, enabling intuitive design exploration and client presentations.</p>
+                <a href="app.html" class="card-button">Design Tools</a>
+            </div>
+
+            <!-- Science Card -->
+            <div class="card science loading">
+                <span class="card-icon">🔬</span>
+                <h3 class="card-title">Science</h3>
+                <p class="card-description">Advance scientific research with interactive 3D visualization. Scientists can explore molecular structures, astronomical objects, and complex data sets through intuitive gesture control.</p>
+                <a href="app.html" class="card-button">Research Tools</a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Create animated particles
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 80;
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 8 + 's';
+                particle.style.animationDuration = (Math.random() * 4 + 6) + 's';
+                
+                // Add random sizes
+                const size = Math.random() * 3 + 1;
+                particle.style.width = size + 'px';
+                particle.style.height = size + 'px';
+                
+                // Add random colors
+                const colors = ['rgba(255, 255, 255, 0.6)', 'rgba(255, 107, 107, 0.4)', 'rgba(78, 205, 196, 0.4)', 'rgba(69, 183, 209, 0.4)'];
+                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+                
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Add hover effects to cards
+        function addCardEffects() {
+            const cards = document.querySelectorAll('.card');
+            
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-15px) scale(1.02)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0) scale(1)';
+                });
+            });
+        }
+
+        // Parallax effect for floating elements
+        function addParallaxEffect() {
+            window.addEventListener('mousemove', (e) => {
+                const floatingElements = document.querySelectorAll('.floating-element');
+                const mouseX = e.clientX / window.innerWidth;
+                const mouseY = e.clientY / window.innerHeight;
+
+                floatingElements.forEach((element, index) => {
+                    const speed = (index + 1) * 0.5;
+                    const x = (mouseX - 0.5) * speed * 20;
+                    const y = (mouseY - 0.5) * speed * 20;
+                    element.style.transform = `translate(${x}px, ${y}px)`;
+                });
+            });
+        }
+
+        // Smooth scroll for navigation
+        function addSmoothScroll() {
+            const navButton = document.querySelector('.nav-button');
+            navButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Add a smooth transition effect
+                document.body.style.opacity = '0';
+                document.body.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => {
+                    window.location.href = 'app.html';
+                }, 300);
+            });
+        }
+
+        // Initialize all effects
+        document.addEventListener('DOMContentLoaded', function() {
+            createParticles();
+            addCardEffects();
+            addParallaxEffect();
+            addSmoothScroll();
+
+            // Add loading animation to cards
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+            });
+        });
+
+        // Add some interactive effects
+        document.addEventListener('mousemove', (e) => {
+            const cards = document.querySelectorAll('.card');
+            const mouseX = e.clientX / window.innerWidth;
+            const mouseY = e.clientY / window.innerHeight;
+
+            cards.forEach((card, index) => {
+                const rect = card.getBoundingClientRect();
+                const cardCenterX = rect.left + rect.width / 2;
+                const cardCenterY = rect.top + rect.height / 2;
+                
+                const deltaX = (e.clientX - cardCenterX) / window.innerWidth;
+                const deltaY = (e.clientY - cardCenterY) / window.innerHeight;
+                
+                // Only apply 3D effect if not hovering
+                if (!card.matches(':hover')) {
+                    card.style.transform = `perspective(1000px) rotateY(${deltaX * 3}deg) rotateX(${-deltaY * 3}deg)`;
+                }
+            });
+        });
+
+        // Reset card transforms on mouse leave
+        document.addEventListener('mouseleave', () => {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach(card => {
+                card.style.transform = 'perspective(1000px) rotateY(0deg) rotateX(0deg)';
+            });
+        });
+
+        // Add card click effects and navigation
+        document.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('click', function() {
+                this.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    this.style.transform = '';
+                    // Navigate to the 3D app after click effect
+                    window.location.href = 'app.html';
+                }, 150);
+            });
+        });
+
+        // Add typing effect to tagline
+        function typeWriter(element, text, speed = 100) {
+            let i = 0;
+            element.innerHTML = '';
+            
+            function type() {
+                if (i < text.length) {
+                    element.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(type, speed);
+                }
+            }
+            type();
+        }
+
+        // Start typing effect after page load
+        setTimeout(() => {
+            const tagline = document.querySelector('.tagline');
+            const originalText = tagline.textContent;
+            typeWriter(tagline, originalText, 50);
+        }, 1000);
+    </script>
+</body>
+</html>

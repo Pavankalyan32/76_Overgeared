@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gesture3D: Real-Time Hand + 3D Control</title>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+    <div id="app">
+        <nav class="navbar">
+            <div class="nav-brand">Gesture3D</div>
+            <div class="nav-status">
+                <span>Gesture:</span> <strong id="gesture">None</strong>
+            </div>
+            <div class="nav-actions">
+                <a href="index.html" class="nav-btn" title="Tesseract Home" style="text-decoration: none; color: inherit;">🏠</a>
+                <button id="btn_fit" class="nav-btn" title="Fit view to object">Fit</button>
+                <button id="btn_zoom_in" class="nav-btn" title="Zoom in">+</button>
+                <button id="btn_zoom_out" class="nav-btn" title="Zoom out">−</button>
+                <button id="btn_surface" class="nav-btn" title="Zoom to surface">🔍</button>
+            </div>
+        </nav>
+        
+        <!-- Left Sidebar: AI Chat & Voice -->
+        <aside class="left-sidebar">
+            <div class="ai-header">
+                <div class="ai-title">
+                    <span class="ai-icon">🤖</span>
+                    <span>AI Assistant</span>
+                </div>
+            </div>
+            
+            <div class="ai-status" id="ai_status">
+                <span class="status-dot"></span>
+                <span class="status-text">Ready for real-time analysis</span>
+            </div>
+
+            <div class="ai-content" id="ai_content">
+                <div class="chat-messages" id="chat_messages">
+                    <div class="message ai-message">
+                        <div class="message-content">
+                            Hello! I'm your AI assistant. I can help you with 3D modeling, gesture controls, and answer questions about what you're working on. Click the eye button to let me see your screen, or ask me anything!
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chat-input-area">
+                    <div class="input-group">
+                        <input type="text" id="chat_input" placeholder="Ask me anything... 🤔" />
+                        <button id="btn_send" class="send-btn">Send 🚀</button>
+                    </div>
+                    <div class="voice-indicator" id="voice_indicator">
+                        <span class="pulse-dot"></span>
+                        Listening...
+                    </div>
+                    <div class="ai-toolbar">
+                        <button id="btn_screen_read" class="ai-btn" title="Read screen">👁️ Screen</button>
+                        <button id="btn_voice_toggle" class="ai-btn" title="Toggle voice">🎤 Voice</button>
+                        <button id="btn_refresh_screen" class="ai-btn" title="Refresh screen data">🔄 Refresh</button>
+                        <button id="btn_chat_toggle" class="ai-btn" title="Toggle chat">💬 Chat</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div id="scene"></div>
+
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h3>Controls</h3>
+                                        <div class="header-buttons">
+                            <button id="btn_extend" class="extend-btn" title="Collapse sidebar">←</button>
+                            <button id="btn_collapse" class="collapse-btn" title="Collapse sidebar">−</button>
+                        </div>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="section">
+                    <div class="section-title">Camera & Tracking</div>
+                    <div class="camera-panel">
+                        <div class="camera-feed">
+                            <video id="input_video" autoplay playsinline muted></video>
+                            <canvas id="overlay"></canvas>
+                            <div class="camera-overlay">
+                                <div class="tracking-status">
+                                    <span class="status-dot" id="tracking_dot"></span>
+                                    <span id="tracking_text">No hands detected</span>
+                                </div>
+                                <div class="fps-counter" id="fps_counter">0 FPS</div>
+                            </div>
+                        </div>
+                        <div class="camera-controls">
+                            <div class="row">
+                                <label><input type="checkbox" id="toggle_tracking" checked /> Show landmarks</label>
+                                <label><input type="checkbox" id="toggle_gesture_debug" /> Debug mode</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Navigation</div>
+                    <div class="row">
+                        <label><input type="checkbox" id="toggle_lock_center" checked /> Lock center</label>
+                    </div>
+                    <div class="row">
+                        <button id="btn_zoom_out">Zoom out</button>
+                        <button id="btn_zoom_in">Zoom in</button>
+                        <button id="btn_center_object" class="ghost">Center Object</button>
+                        <button id="btn_reset_camera" class="ghost">Reset Camera</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Model</div>
+                    <div class="row">
+                        <label>Choose:</label>
+                        <select id="model_select">
+                            <option value="cube">Cube</option>
+                            <option value="earth">Earth (Textured)</option>
+                            <option value="sphere">Sphere</option>
+                            <option value="torus">Torus</option>
+                            <option value="cylinder">Cylinder</option>
+                            <option value="cone">Cone</option>
+                            <option value="octahedron">Octahedron</option>
+                            <option value="dodecahedron">Dodecahedron</option>
+                            <option value="icosahedron">Icosahedron</option>
+                            <option value="ring">Ring</option>
+                            <option value="plane">Plane</option>
+                            <option value="helmet">DamagedHelmet (GLTF)</option>
+                            <option value="duck">Duck (GLTF)</option>
+                            <option value="fox">Fox (GLTF)</option>
+                            <option value="robot">Robot (GLTF)</option>
+                            <option value="custom">Custom (current)</option>
+                        </select>
+                        <button id="btn_reset_models" class="ghost" title="Reset to default cube">Reset</button>
+                    </div>
+                    <div class="row">
+                        <label>Scale: <span id="scale_value">1.0</span>x</label>
+                        <input type="range" min="0.05" max="10" step="0.05" id="scale_slider" />
+                        <input type="number" id="scale_number" min="0.05" max="10" step="0.05" value="1.0" />
+                        <button id="btn_fit" class="ghost">Fit view</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Import</div>
+                    <div class="row">
+                        <div class="file-upload">
+                            <input type="file" id="file_input" accept=".glb,.gltf,.obj,.mtl,.stl" multiple />
+                            <label for="file_input" class="file-label">Choose 3D files (.glb, .gltf, .obj, .stl) - OBJ files work with or without MTL materials</label>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <input type="url" id="url_input" placeholder="https://... .glb/.gltf/.obj/.stl" />
+                        <button id="btn_load_url">Load URL</button>
+                    </div>
+                    <div class="row">
+                        <div class="loading-indicator" id="loading_indicator" style="display: none;">
+                            <span class="loading-spinner"></span>
+                            <span>Loading model...</span>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <div class="section">
+                    <div class="section-title">Gestures</div>
+                    <div class="row">
+                        <label><input type="checkbox" id="toggle_twohand" /> Two-hand scale</label>
+                        <label><input type="checkbox" id="toggle_gemini" /> Gemini stub</label>
+                    </div>
+                    <div class="row">
+                        <label>Frame skip: <span id="frame_skip_value">0</span></label>
+                        <input type="range" min="0" max="4" step="1" id="frame_skip" />
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Display</div>
+                    <div class="row">
+                        <label><input type="checkbox" id="toggle_hologram" /> Hologram mode</label>
+                        <label><input type="checkbox" id="toggle_multiplayer" /> Multiplayer</label>
+                    </div>
+                    <div class="row" id="ar_container"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Recording</div>
+                    <div class="row">
+                        <button id="btn_record">Record</button>
+                        <button id="btn_stop" disabled>Stop</button>
+                        <button id="btn_replay" disabled>Replay</button>
+                        <button id="btn_clear" disabled>Clear</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="hints">
+            <ul>
+                <li><strong>Pinch</strong>: scale object</li>
+                <li><strong>Open palm</strong>: translate (drag)</li>
+                <li><strong>Index move</strong>: rotate</li>
+                <li><strong>Two fingers</strong>: zoom out</li>
+                <li><strong>Three fingers</strong>: pan model</li>
+                <li><strong>One finger</strong>: pan model/viewport (based on lock center)</li>
+                <li><strong>Fist</strong>: zoom in</li>
+                <li><strong>Two hands</strong>: distance → scale, midpoint → translate</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Three.js as modules with import map -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+    </script>
+
+    <!-- MediaPipe dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <!-- Socket.IO (optional) -->
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js" integrity="sha384-Gb7jBCjFbcBbN3b9t7zj7aM9f8yQGm6NfFcQ7iwz9l0D3eG+JX1mN2t0y8EwGZxv" crossorigin="anonymous"></script>
+
+    <!-- App (as ES module for loaders/AR imports) -->
+    <script type="module" src="./app.js"></script>
+</body>
+</html>
+
+
