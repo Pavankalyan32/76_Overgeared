@@ -202,6 +202,12 @@ input[type="range"]::-moz-range-thumb {
 }
 .status-dot.tracking { background: #44ff44; }
 .status-dot.processing { background: #ffaa44; }
+/* Shown in place of the video when the webcam is denied or missing. */
+.camera-help {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    padding: 28px 12px 12px; background: rgba(12,14,18,0.92);
+    color: #ffd9b8; font-size: 11px; line-height: 1.5; text-align: center;
+}
 .fps-counter { 
     background: rgba(0,0,0,0.7); padding: 4px 8px; 
     border-radius: 12px; color: #fff; font-size: 11px;
@@ -287,6 +293,8 @@ input[type="range"]::-moz-range-thumb {
 .message-content {
     padding: 10px 14px; border-radius: 12px; max-width: 85%;
     word-wrap: break-word; line-height: 1.4;
+    /* Model replies are newline-separated bullets; keep those breaks visible. */
+    white-space: pre-wrap;
 }
 
 .user-message { align-items: flex-end; }
