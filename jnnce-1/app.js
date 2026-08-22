@@ -40,7 +40,6 @@ const featureFlags = {
     twoHand: false,
     hologram: false,
     multiplayer: false,
-    useGemini: false,
     showLandmarks: true,
     gestureDebug: false,
 };
@@ -1151,6 +1150,8 @@ function replayRecording() {
 // GLTF model loading
 let currentModel = null;
 const SAMPLE_MODELS = {
+    // Bundled locally, so this one works offline. Its texture is 22MB, hence not the default.
+    globe: './scene.gltf',
     helmet: 'https://rawcdn.githack.com/mrdoob/three.js/r160/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf',
     duck: 'https://rawcdn.githack.com/mrdoob/three.js/r160/examples/models/gltf/Duck/glTF/Duck.gltf',
     fox: 'https://rawcdn.githack.com/mrdoob/three.js/r160/examples/models/gltf/Fox/glTF/Fox.gltf',
@@ -1158,6 +1159,10 @@ const SAMPLE_MODELS = {
 };
 
 async function loadModel(kind) {
+    // "Custom" means whatever the user imported, so keep it. This must return
+    // before clearAllModels() below, which would otherwise dispose of it.
+    if (kind === 'custom') return;
+
     // Clear all existing models and objects except lights and default cube
     clearAllModels();
     
@@ -1184,15 +1189,6 @@ async function loadModel(kind) {
         return;
     }
     
-    // Basic geometric shapes
-    if (kind === 'cube') { 
-        activeObject = cube; 
-        cube.visible = true; 
-        fitCameraToObject(activeObject, 1.15); 
-        return; 
-    }
-    
-    // Basic geometric shapes
     if (kind === 'cube') { 
         activeObject = cube; 
         cube.visible = true; 
@@ -1268,25 +1264,37 @@ async function loadModel(kind) {
     }
     
     // GLTF models
-    cube.visible = false;
     const url = SAMPLE_MODELS[kind];
     if (!url) {
-        console.error('Unknown model type:', kind);
+        // Never leave an empty viewport: fall back to the default cube.
+        console.error('Unknown model type:', kind, '- falling back to cube');
+        activeObject = cube;
+        cube.visible = true;
+        fitCameraToObject(activeObject, 1.15);
         return;
     }
-    
-    const loader = new GLTFLoader();
-    return new Promise((resolve, reject) => {
-        loader.load(url, (gltf) => {
-            currentModel = gltf.scene;
-            currentModel.position.set(0, 0, 0);
-            currentModel.scale.setScalar(1);
-            scene.add(currentModel);
-            activeObject = currentModel;
-            fitCameraToObject(activeObject, 1.15);
-            resolve();
-        }, undefined, reject);
-    });
+
+    cube.visible = false;
+    showLoadingIndicator();
+    try {
+        const gltf = await new GLTFLoader().loadAsync(url);
+        currentModel = gltf.scene;
+        currentModel.position.set(0, 0, 0);
+        currentModel.scale.setScalar(1);
+        scene.add(currentModel);
+        activeObject = currentModel;
+        centerAndScale(currentModel);
+        fitCameraToObject(activeObject, 1.15);
+    } catch (err) {
+        // These are remote URLs, so a load failure is expected sometimes.
+        console.error(`Failed to load model "${kind}":`, err);
+        activeObject = cube;
+        cube.visible = true;
+        fitCameraToObject(activeObject, 1.15);
+        alert(`Could not load the "${kind}" model. Check your internet connection.`);
+    } finally {
+        hideLoadingIndicator();
+    }
 }
 
 function centerAndScale(object3d) {
@@ -1515,9 +1523,16 @@ async function loadCustomFromFile(file) {
 // Multiplayer (Socket.io)
 let socket = null, lastEmit = 0;
 function initSocket() {
-    if (!window.io) return;
-    socket = window.io('http://localhost:3000', { transports: ['websocket'], autoConnect: false });
+    if (!window.io) {
+        console.warn('Socket.IO client not loaded; multiplayer disabled.');
+        const toggle = document.getElementById('toggle_multiplayer');
+        if (toggle) { toggle.disabled = true; toggle.title = 'Socket.IO unavailable'; }
+        return;
+    }
+    // Same origin as the page, so this works on any host/port the server runs on.
+    socket = window.io({ autoConnect: false });
     socket.on('connect', () => console.log('Connected to multiplayer'));
+    socket.on('connect_error', (err) => console.warn('Multiplayer connection failed:', err.message));
     socket.on('state', (state) => {
         if (!state) return;
         targetScale = state.s; targetRotation.x = state.rx; targetRotation.y = state.ry; targetPosition.x = state.px; targetPosition.y = state.py;
@@ -1546,7 +1561,8 @@ function setupARButton() {
             });
         }
     } catch (e) {
-        console.log('');
+        // WebXR is unavailable on most desktop browsers; that is not an error.
+        console.info('AR unavailable:', e.message);
     }
 }
 
@@ -1711,17 +1727,12 @@ function createComplexShape(type) {
     return new THREE.Mesh(geometry, material);
 }
 
-// Gemini stub (placeholder)
-async function processWithGeminiStub(videoEl) {
-    // Placeholder: return null to let MediaPipe path handle; or mirror a simple rotation gesture
-    return null;
-}
+
 
 function bindUI() {
     ui.twoHand = document.getElementById('toggle_twohand');
     ui.hologram = document.getElementById('toggle_hologram');
     ui.multiplayer = document.getElementById('toggle_multiplayer');
-    ui.gemini = document.getElementById('toggle_gemini');
 
     ui.frameSkip = document.getElementById('frame_skip');
     ui.frameSkipValue = document.getElementById('frame_skip_value');
@@ -1736,10 +1747,6 @@ function bindUI() {
     ui.btnStop = document.getElementById('btn_stop');
     ui.btnReplay = document.getElementById('btn_replay');
     ui.btnClear = document.getElementById('btn_clear');
-    ui.btnZoomOut = document.getElementById('btn_zoom_out');
-    ui.btnZoomIn = document.getElementById('btn_zoom_in');
-    ui.btnFit = document.getElementById('btn_fit');
-    ui.btnSurface = document.getElementById('btn_surface');
     ui.btnResetModels = document.getElementById('btn_reset_models');
     
     // Sidebar controls
@@ -1767,8 +1774,6 @@ function bindUI() {
             if (featureFlags.multiplayer) socket.connect(); else socket.disconnect();
         }
     });
-    ui.gemini.addEventListener('change', (e) => featureFlags.useGemini = e.target.checked);
-
     ui.lockCenter = document.getElementById('toggle_lock_center');
     ui.lockCenter.addEventListener('change', (e) => { lockCenter = !!e.target.checked; if (orbitControls) orbitControls.enablePan = !lockCenter; });
     ui.frameSkip.addEventListener('input', (e) => { frameSkip = Number(e.target.value); ui.frameSkipValue.textContent = String(frameSkip); });
@@ -1800,7 +1805,7 @@ function bindUI() {
     });
     
     ui.btnScreenRead.addEventListener('click', async () => {
-        addMessage('Analyzing your screen...', 'ai');
+        addMessage('Analyzing your screen...', 'ai', true);
         const response = await performRealTimeAnalysis('What can you see on my screen? Please describe the current state and any 3D objects or gestures visible.');
         const chatMessages = document.getElementById('chat_messages');
         if (chatMessages.lastChild) {
@@ -1810,7 +1815,7 @@ function bindUI() {
     });
     
     ui.btnRefreshScreen.addEventListener('click', async () => {
-        addMessage('Refreshing screen...', 'ai');
+        addMessage('Refreshing screen...', 'ai', true);
         const response = await performRealTimeAnalysis('Please describe the current state of the screen, including any 3D objects or gestures visible.');
         const chatMessages = document.getElementById('chat_messages');
         if (chatMessages.lastChild) {
@@ -1849,12 +1854,7 @@ function bindUI() {
         featureFlags.gestureDebug = e.target.checked;
     });
 
-    function setBaselineScale(v) {
-        baselineScale = v;
-        if (ui.scaleSlider) ui.scaleSlider.value = String(v);
-        if (ui.scaleNumber) ui.scaleNumber.value = String(v);
-        if (ui.scaleValue) ui.scaleValue.textContent = Number(v).toFixed(2);
-    }
+    // setBaselineScale is defined at module scope; no local copy needed.
     ui.scaleSlider.addEventListener('input', (e) => setBaselineScale(Number(e.target.value)));
     ui.scaleNumber.addEventListener('input', (e) => setBaselineScale(Number(e.target.value)));
     ui.fileInput.addEventListener('change', async (e) => {
@@ -1912,24 +1912,24 @@ function bindUI() {
     ui.btnStop.addEventListener('click', () => { stopRecording(); ui.btnRecord.disabled = false; ui.btnStop.disabled = true; ui.btnReplay.disabled = recording.frames.length === 0; ui.btnClear.disabled = recording.frames.length === 0; });
     ui.btnReplay.addEventListener('click', () => { replayRecording(); });
     ui.btnClear.addEventListener('click', () => { clearRecording(); ui.btnReplay.disabled = true; ui.btnClear.disabled = true; });
-    ui.btnZoomOut.addEventListener('click', () => { orbitDistance(1.5); });
-    ui.btnZoomIn.addEventListener('click', () => { orbitDistance(0.5); });
-    ui.btnFit.addEventListener('click', () => { if (activeObject) fitCameraToObject(activeObject, 1.8); });
-    ui.btnSurface.addEventListener('click', () => { if (activeObject) zoomToSurface(); });
     ui.btnResetModels.addEventListener('click', resetModels);
-    
-    // Bind new centering buttons
-    const btnCenterObject = document.getElementById('btn_center_object');
-    const btnResetCamera = document.getElementById('btn_reset_camera');
-    if (btnCenterObject) btnCenterObject.addEventListener('click', centerObject);
-    if (btnResetCamera) btnResetCamera.addEventListener('click', resetCamera);
-    
-    // Add gesture reset button for debugging
-    const gestureResetBtn = document.createElement('button');
-    gestureResetBtn.textContent = 'Reset Gestures';
-    gestureResetBtn.style.cssText = 'position: fixed; top: 10px; right: 10px; z-index: 1000; padding: 8px; background: #ff6b6b; color: white; border: none; border-radius: 4px; cursor: pointer;';
-    gestureResetBtn.addEventListener('click', resetGestureStates);
-    document.body.appendChild(gestureResetBtn);
+
+    // Camera actions appear in both the navbar and the sidebar. One delegated
+    // listener keeps every copy live; duplicate ids previously left the sidebar dead.
+    const viewActions = {
+        fit: () => { if (activeObject) fitCameraToObject(activeObject, 1.8); },
+        surface: () => { if (activeObject) zoomToSurface(); },
+        zoom_in: () => orbitDistance(0.5),
+        zoom_out: () => orbitDistance(1.5),
+        center: centerObject,
+        reset_camera: resetCamera,
+    };
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        const action = viewActions[btn.dataset.act];
+        if (action) action();
+    });
 }
 
 // Boot
@@ -1941,12 +1941,52 @@ window.addEventListener('DOMContentLoaded', async () => {
     bindMouseInput();
     initSpeechRecognition(); // Initialize AI voice recognition
     animate();
-    await initMediaPipe();
+
+    // Load the model before touching the camera so the viewport is correct even
+    // if webcam access is denied or unavailable.
     await loadModel('cube');
 
     // Push recording frames and maybe emit multiplayer state
     setInterval(() => { pushFrame(); maybeEmitState(); }, 50);
+
+    reportAIAvailability();
+
+    // Hand tracking is optional: mouse and wheel controls work without it, so a
+    // denied or missing camera must not take the rest of the app down with it.
+    try {
+        await initMediaPipe();
+    } catch (err) {
+        console.warn('Hand tracking unavailable:', err);
+        const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+        updateTrackingStatus('', denied ? 'Camera blocked - use mouse' : 'No camera - use mouse');
+        showCameraHelp(denied);
+    }
 });
+
+// Explain the fallback in the camera panel instead of failing silently.
+function showCameraHelp(denied) {
+    const feed = document.querySelector('.camera-feed');
+    if (!feed || feed.querySelector('.camera-help')) return;
+    const note = document.createElement('div');
+    note.className = 'camera-help';
+    note.textContent = denied
+        ? 'Camera permission denied. Gesture control is off; drag to rotate, shift-drag to move, ctrl-drag or scroll to zoom.'
+        : 'No camera available. Gesture control is off; drag to rotate, shift-drag to move, ctrl-drag or scroll to zoom.';
+    feed.appendChild(note);
+}
+
+// Surface whether the server has an API key, rather than waiting for a failed request.
+async function reportAIAvailability() {
+    try {
+        const res = await fetch('/api/ai/status');
+        const { enabled } = await res.json();
+        if (!enabled) {
+            updateAIStatus('error', 'AI disabled - no API key on server');
+        }
+    } catch {
+        updateAIStatus('error', 'AI unavailable - server not reachable');
+    }
+}
 
 // Fit camera so object is fully visible
 function fitCameraToObject(object3d, margin = 1.8) {
@@ -2078,13 +2118,9 @@ function ensureInView(object3d, margin = 1.1) {
     }
 }
 
-// Gemini API configuration
-const GEMINI_CONFIG = {
-    apiKey: 'AIzaSyBs4KSZgdft0HlXCSg_LY84XY3GZZAzRpk', // Gemini API key
-    model: 'gemini-1.5-flash',
-    maxTokens: 400,
-    temperature: 0.3,
-};
+// AI requests go through our own server so the API key never reaches the browser.
+// Model, token limit and temperature are configured server-side (see server/.env.example).
+const AI_ENDPOINT = '/api/ai';
 
 // AI Chat state
 const aiState = {
@@ -2132,7 +2168,7 @@ function startVoiceRecognition() {
         aiState.recognition.start();
         aiState.isListening = true;
         updateVoiceUI(true);
-        addMessage('Listening...', 'ai');
+        addMessage('Listening...', 'ai', true);
     }
 }
 
@@ -2192,11 +2228,6 @@ async function captureScreenForAI() {
         }
         
         // Gather real-time context data
-        console.log('Gathering context data...');
-        console.log('Active object:', activeObject);
-        console.log('Camera:', camera);
-        console.log('Gesture state:', gestureState);
-        console.log('Feature flags:', featureFlags);
         
         const contextData = {
             timestamp: new Date().toISOString(),
@@ -2229,9 +2260,9 @@ async function captureScreenForAI() {
                 far: camera.far
             } : null,
             gestureState: {
-                currentGesture: gestureState.currentGesture || 'None',
-                pinchActive: gestureState.pinchActive || false,
-                lastGestureTime: gestureState.lastGestureTime || 0
+                // The field is `current`; reading `currentGesture` always reported "None".
+                currentGesture: gestureState.current || 'None',
+                pinchActive: gestureState.pinchActive || false
             },
             featureFlags: {
                 twoHand: featureFlags.twoHand || false,
@@ -2240,14 +2271,12 @@ async function captureScreenForAI() {
             }
         };
         
-        const result = { 
-            scene: dataURL, 
-            video: videoDataURL, 
-            context: contextData 
+        // Not logged: `scene` and `video` are multi-megabyte base64 strings.
+        return {
+            scene: dataURL,
+            video: videoDataURL,
+            context: contextData
         };
-        
-        console.log('Screen capture result:', result);
-        return result;
     } catch (error) {
         console.error('Screen capture error:', error);
         return null;
@@ -2256,10 +2285,6 @@ async function captureScreenForAI() {
 
 // Gemini API integration
 async function analyzeWithGemini(screenshots, userQuestion) {
-    if (!GEMINI_CONFIG.apiKey) {
-        return 'Please add your Gemini API key to use AI features.';
-    }
-    
     try {
         let prompt = `You are an AI assistant helping with a 3D modeling application called Gesture3D. 
         
@@ -2320,83 +2345,58 @@ async function analyzeWithGemini(screenshots, userQuestion) {
         If the user needs help with something specific on their screen, suggest they ask a more specific question. Output only 3-5 bullet points, one sentence each, no preamble or headings, and keep the total under 120 words.`;
         }
         
-        const requestBody = {
-            contents: [{
-                parts: [
-                    { text: prompt }
-                ]
-            }]
-        };
-        
-        // Add screenshots if available
+        // Strip the `data:image/png;base64,` prefix; the server re-attaches the mime type.
+        const images = [];
         if (screenshots) {
-            if (screenshots.scene) {
-                requestBody.contents[0].parts.push({
-                    inlineData: { 
-                        mimeType: 'image/png', 
-                        data: screenshots.scene.split(',')[1] 
-                    }
-                });
-            }
-            if (screenshots.video) {
-                requestBody.contents[0].parts.push({
-                    inlineData: { 
-                        mimeType: 'image/png', 
-                        data: screenshots.video.split(',')[1] 
-                    }
-                });
-            }
+            if (screenshots.scene) images.push(screenshots.scene.split(',')[1]);
+            if (screenshots.video) images.push(screenshots.video.split(',')[1]);
         }
-        
-        console.log('Making Gemini API request to:', `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.model}:generateContent`);
-        console.log('Request body:', requestBody);
-        
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.model}:generateContent?key=${GEMINI_CONFIG.apiKey}`, {
+
+        const response = await fetch(AI_ENDPOINT, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, images })
         });
-        
-        console.log('Gemini API response status:', response.status);
-        console.log('Gemini API response headers:', response.headers);
-        
+
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Gemini API error response:', errorText);
-            throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+            throw new Error(data.error || `Request failed (${response.status}).`);
         }
-        
-        const data = await response.json();
-        console.log('Gemini API response data:', data);
-        return data.candidates[0].content.parts[0].text;
-        
+        return data.text;
+
     } catch (error) {
-        console.error('Gemini API error:', error);
-        return `Sorry, I encountered an error: ${error.message}. Please check your API key and try again.`;
+        console.error('AI request failed:', error);
+        return `Sorry, I encountered an error: ${error.message}`;
     }
 }
 
 // Chat message handling
-function addMessage(content, sender = 'user') {
+// `transient` marks placeholders like "Analyzing..." that get replaced moments
+// later: those should not be spoken aloud or kept in history.
+function addMessage(content, sender = 'user', transient = false) {
     const chatMessages = document.getElementById('chat_messages');
     if (!chatMessages) return;
     
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}-message`;
-    messageDiv.innerHTML = `<div class="message-content">${content}</div>`;
+    // textContent, not innerHTML: chat carries untrusted user input and model output.
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.textContent = String(content);
+    messageDiv.appendChild(contentDiv);
     
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
+    if (transient) return;
+
     // Store in history
     aiState.chatHistory.push({ content, sender, timestamp: Date.now() });
 
     // If AI is speaking mode is on and this is an AI message, speak it
     if (sender === 'ai' && aiState.voiceOutput && 'speechSynthesis' in window) {
         try {
-            const utter = new SpeechSynthesisUtterance(String(content).replace(/<[^>]+>/g, ''));
+            const utter = new SpeechSynthesisUtterance(String(content));
             utter.rate = 1.0; utter.pitch = 1.0; utter.volume = 1.0;
             speechSynthesis.cancel();
             speechSynthesis.speak(utter);
@@ -2424,7 +2424,7 @@ async function handleUserInput(input) {
     );
     
     // Show processing indicator
-    addMessage('Analyzing your request...', 'ai');
+    addMessage('Analyzing your request...', 'ai', true);
     
     try {
         let screenshots = null;
@@ -2433,10 +2433,8 @@ async function handleUserInput(input) {
         if (isScreenRelated) {
             // Update processing message to indicate screen capture
             const chatMessages = document.getElementById('chat_messages');
-            if (chatMessages.lastChild) {
-                chatMessages.lastChild.querySelector('.message-content').innerHTML = 
-                    '📸 <em>Automatically capturing screen...</em>';
-            }
+            const placeholder = chatMessages.lastChild?.querySelector('.message-content');
+            if (placeholder) placeholder.textContent = '📸 Capturing screen...';
             
             // Use enhanced real-time analysis
             const response = await performRealTimeAnalysis(input);

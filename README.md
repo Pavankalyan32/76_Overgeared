@@ -1,122 +1,133 @@
-# Tesseract - 3D Gesture Control Platform
+# Tesseract — 3D Gesture Control Platform
 
-![Tesseract Logo](https://img.shields.io/badge/Tesseract-3D%20Gesture%20Control-blueviolet)
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+Control 3D models in the browser with webcam hand gestures. Three.js renders the
+scene, MediaPipe Hands tracks the hand, and a small Express server serves the
+frontend, relays shared state over Socket.IO, and proxies the AI assistant.
 
-## 🌟 Overview
+## Requirements
 
-Tesseract is an advanced 3D gesture control platform that allows users to manipulate 3D objects using natural hand gestures. The application combines cutting-edge technologies including Three.js for 3D rendering, hand tracking for gesture recognition, and real-time collaboration features.
+- Node.js 20.6 or newer (the server uses `--env-file-if-exists` and global `fetch`)
+- A browser with WebGL support (Chrome, Edge, Firefox)
+- A webcam, for gesture control only. Everything else works with mouse and keyboard.
 
-## ✨ Features
+## Setup
 
-### 🏠 Home Page (`index.html`)
-- Beautiful animated landing page with gradient backgrounds and particle effects
-- 4 interactive cards for different use cases (Education, Medical, Architecture, Science)
-- Smooth animations and hover effects
-- Responsive design for all devices
-
-### 🖐️ 3D Application (`app.html`)
-- **Real-time hand gesture tracking** - Control 3D objects with natural hand movements
-- **Multi-gesture support**:
-  - Pinch to scale objects
-  - Fist to grab and move objects
-  - Two-finger gestures for rotation
-  - Three-finger gestures for advanced controls
-- **3D model manipulation** with intuitive controls
-- **Multiple 3D model types** (cube, sphere, torus, etc.)
-- **File import support** (.glb, .gltf, .obj, .stl)
-- **Camera controls** and navigation
-- **Recording and replay** functionality
-
-### 🔄 Real-time Collaboration
-- Share your 3D workspace with others in real-time
-- See changes made by collaborators instantly
-- Socket.io powered backend for efficient real-time updates
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js (v14 or higher)
-- Modern web browser with WebGL support (Chrome, Firefox, Edge recommended)
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Pavankalyan32/76_Overgeared.git
-   cd 76_Overgeared
-   ```
-
-2. Install dependencies:
-   ```bash
-   cd server
-   npm install
-   ```
-
-### Running the Application
-
-1. Start the server:
-   ```bash
-   cd server
-   npm start
-   ```
-
-2. Access the application:
-   - Open your browser and go to `http://localhost:3000`
-   - You'll see the Tesseract home page with interactive cards
-
-## 🧭 Navigation Flow
-
-```
-Home Page (index.html) ←→ 3D App (app.html)
-     ↑                        ↑
-   Cards                  Home Button (🏠)
+```bash
+npm run setup     # installs server dependencies
+npm start         # serves the app on http://localhost:3000
 ```
 
-The application provides a seamless user experience where users start at the beautiful home page and can easily navigate to the 3D application by clicking on any of the cards or the launch button.
+Then open <http://localhost:3000>.
 
-## 📁 Project Structure
+Gesture tracking needs a secure context, which `localhost` counts as. If you serve
+this from another host, use HTTPS or the browser will refuse camera access.
+
+### Optional: enable the AI assistant
+
+The assistant is off until you supply a Gemini API key. The key stays on the
+server and is never sent to the browser.
+
+```bash
+cp jnnce-1/server/.env.example jnnce-1/server/.env
+# then edit .env and set GEMINI_API_KEY=...
+```
+
+Get a key from [Google AI Studio](https://aistudio.google.com/app/apikey). Restart
+the server afterwards. Without a key the app runs normally and the AI panel
+reports that it is disabled.
+
+## Usage
+
+`index.html` is the landing page; any card takes you to `app.html`, the actual
+3D workspace. The home button in the navbar goes back.
+
+### Gestures
+
+| Gesture | Action |
+| --- | --- |
+| Pinch (thumb + index) | Scale the object |
+| Open palm | Translate |
+| Index finger movement | Rotate |
+| Fist | Zoom in |
+| Two fingers | Zoom out |
+| Three fingers | Pan the viewport |
+| Two hands | Distance scales, midpoint translates (enable "Two-hand scale") |
+
+### Mouse and keyboard
+
+Gestures are optional. The same controls are always available:
+
+| Input | Action |
+| --- | --- |
+| Drag | Rotate |
+| Shift-drag or right-drag | Move |
+| Ctrl-drag | Scale |
+| Scroll wheel | Zoom |
+
+### Models
+
+Pick a built-in primitive from the dropdown, load one of the bundled or remote
+glTF samples, or import your own `.glb`, `.gltf`, `.obj` (with optional `.mtl`)
+or `.stl` from disk or a URL. Imported models are recentred and normalised so
+the scale control behaves consistently.
+
+The "Globe" entry is a locally bundled glTF, so it works offline. Its texture is
+22MB, which is why it is not the default.
+
+## Project layout
 
 ```
-├── index.html          # Home/landing page
-├── app.html            # Main 3D gesture control application
-├── app.js              # Core application logic for 3D rendering and gestures
-├── style.css           # Styling for the application
-├── scene.gltf          # Default 3D model
-├── scene.bin           # Binary data for the 3D model
-├── server/             # Backend server
-│   ├── index.js        # Express server setup with Socket.io
-│   ├── package.json    # Server dependencies
+package.json              # convenience scripts that delegate to the server
+LICENSE
+jnnce-1/
+  index.html              # landing page (self-contained styles and script)
+  app.html                # the 3D workspace
+  app.js                  # scene, gesture pipeline, model loading, AI client
+  style.css               # styles for the workspace
+  scene.gltf / scene.bin  # bundled "Globe" model
+  textures/               # its texture
+  server/
+    index.js              # static hosting, Socket.IO relay, Gemini proxy
+    test/api.test.js      # checks on the AI proxy and the state relay
+    .env.example
 ```
 
-## 🛠️ Technologies Used
+## Tests
 
-- **Frontend**:
-  - Three.js - 3D rendering engine
-  - WebGL - Hardware-accelerated graphics
-  - HTML5/CSS3/JavaScript - Core web technologies
+```bash
+cd jnnce-1/server && npm test
+```
 
-- **Backend**:
-  - Node.js - JavaScript runtime
-  - Express - Web server framework
-  - Socket.io - Real-time communication
+These cover the `/api/ai` input validation and the multiplayer state sanitiser,
+using Node's built-in test runner. No extra dependencies.
 
-## 🤝 Contributing
+## Multiplayer
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Ticking "Multiplayer" syncs object scale, rotation and position to every other
+connected client.
 
-## 📄 License
+**This relay is unauthenticated and has a single global room.** Anyone who can
+reach the port can read and overwrite the shared state. It is fine on a trusted
+local network; add authentication and per-room routing before exposing it to the
+internet.
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## Notes on AI features
 
-## 🙏 Acknowledgements
+The assistant captures the WebGL canvas plus the current webcam frame and sends
+them, along with a snapshot of scene state, to Gemini for analysis. Nothing is
+sent unless you explicitly ask a question or press one of the AI buttons. Voice
+input uses the browser's Web Speech API, which in Chrome forwards audio to
+Google for recognition.
 
-- Three.js community for the excellent 3D library
-- Contributors to the hand tracking and gesture recognition technologies
-- All open-source projects that made this application possible
+## Technologies
+
+Three.js 0.160 (via import map), MediaPipe Hands, Web Speech API, WebXR,
+Express, Socket.IO, Google Gemini.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ---
 
-<p align="center">Made with ❤️ by Team Overgeared</p>
+<p align="center">Made by Team Overgeared</p>

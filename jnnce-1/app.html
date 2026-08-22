@@ -15,10 +15,10 @@
             </div>
             <div class="nav-actions">
                 <a href="index.html" class="nav-btn" title="Tesseract Home" style="text-decoration: none; color: inherit;">🏠</a>
-                <button id="btn_fit" class="nav-btn" title="Fit view to object">Fit</button>
-                <button id="btn_zoom_in" class="nav-btn" title="Zoom in">+</button>
-                <button id="btn_zoom_out" class="nav-btn" title="Zoom out">−</button>
-                <button id="btn_surface" class="nav-btn" title="Zoom to surface">🔍</button>
+                <button data-act="fit" class="nav-btn" title="Fit view to object">Fit</button>
+                <button data-act="zoom_in" class="nav-btn" title="Zoom in">+</button>
+                <button data-act="zoom_out" class="nav-btn" title="Zoom out">−</button>
+                <button data-act="surface" class="nav-btn" title="Zoom to surface">🔍</button>
             </div>
         </nav>
         
@@ -105,10 +105,10 @@
                         <label><input type="checkbox" id="toggle_lock_center" checked /> Lock center</label>
                     </div>
                     <div class="row">
-                        <button id="btn_zoom_out">Zoom out</button>
-                        <button id="btn_zoom_in">Zoom in</button>
-                        <button id="btn_center_object" class="ghost">Center Object</button>
-                        <button id="btn_reset_camera" class="ghost">Reset Camera</button>
+                        <button data-act="zoom_out">Zoom out</button>
+                        <button data-act="zoom_in">Zoom in</button>
+                        <button data-act="center" class="ghost">Center Object</button>
+                        <button data-act="reset_camera" class="ghost">Reset Camera</button>
                     </div>
                 </div>
 
@@ -128,6 +128,7 @@
                             <option value="icosahedron">Icosahedron</option>
                             <option value="ring">Ring</option>
                             <option value="plane">Plane</option>
+                            <option value="globe">Globe (bundled GLTF, 22MB texture)</option>
                             <option value="helmet">DamagedHelmet (GLTF)</option>
                             <option value="duck">Duck (GLTF)</option>
                             <option value="fox">Fox (GLTF)</option>
@@ -140,7 +141,7 @@
                         <label>Scale: <span id="scale_value">1.0</span>x</label>
                         <input type="range" min="0.05" max="10" step="0.05" id="scale_slider" />
                         <input type="number" id="scale_number" min="0.05" max="10" step="0.05" value="1.0" />
-                        <button id="btn_fit" class="ghost">Fit view</button>
+                        <button data-act="fit" class="ghost">Fit view</button>
                     </div>
                 </div>
 
@@ -170,7 +171,6 @@
                     <div class="section-title">Gestures</div>
                     <div class="row">
                         <label><input type="checkbox" id="toggle_twohand" /> Two-hand scale</label>
-                        <label><input type="checkbox" id="toggle_gemini" /> Gemini stub</label>
                     </div>
                     <div class="row">
                         <label>Frame skip: <span id="frame_skip_value">0</span></label>
@@ -228,8 +228,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 
-    <!-- Socket.IO (optional) -->
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js" integrity="sha384-Gb7jBCjFbcBbN3b9t7zj7aM9f8yQGm6NfFcQ7iwz9l0D3eG+JX1mN2t0y8EwGZxv" crossorigin="anonymous"></script>
+    <!-- Socket.IO client, served by our own socket.io server so the version always matches -->
+    <script src="/socket.io/socket.io.js"></script>
 
     <!-- App (as ES module for loaders/AR imports) -->
     <script type="module" src="./app.js"></script>
