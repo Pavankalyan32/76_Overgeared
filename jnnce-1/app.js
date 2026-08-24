@@ -2080,7 +2080,7 @@ function ensureInView(object3d, margin = 1.1) {
 
 // Gemini API configuration
 const GEMINI_CONFIG = {
-    apiKey: 'AIzaSyBs4KSZgdft0HlXCSg_LY84XY3GZZAzRpk', // Gemini API key
+    apiKey: 'YOUR_KEY', // Gemini API key
     model: 'gemini-1.5-flash',
     maxTokens: 400,
     temperature: 0.3,
