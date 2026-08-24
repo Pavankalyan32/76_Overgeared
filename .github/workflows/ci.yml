@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  server:
+    name: Server tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # server/package.json requires >=20.6 for --env-file-if-exists.
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: jnnce-1/server/package-lock.json
+
+      # package-lock.json is committed, so ci gives a reproducible install.
+      - name: Install
+        run: npm ci
+        working-directory: jnnce-1/server
+
+      # No secrets needed: the suite sets a fake GEMINI_API_KEY itself so the
+      # validation paths run without a real credential. One test deliberately
+      # gets past validation and attempts the upstream call, which fails with
+      # that fake key. It asserts only that validation did not reject it, so it
+      # passes whether or not the runner has network egress.
+      - name: Test
+        run: npm test
+        working-directory: jnnce-1/server
+
+  frontend:
+    name: Frontend syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # app.js is an ES module loaded straight into the browser with no bundler,
+      # so nothing else would catch a parse error before a user hits it.
+      # --check needs the .mjs extension to treat the file as a module.
+      - name: Parse app.js as an ES module
+        run: |
+          cp jnnce-1/app.js "$RUNNER_TEMP/app.mjs"
+          node --check "$RUNNER_TEMP/app.mjs"
+
+      - name: Parse server entrypoint
+        run: node --check jnnce-1/server/index.js
+
+      - name: Validate bundled glTF is well-formed JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('jnnce-1/scene.gltf','utf8'))"

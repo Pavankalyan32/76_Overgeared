@@ -1,5 +1,7 @@
 # Tesseract — 3D Gesture Control Platform
 
+[![CI](https://github.com/Pavankalyan32/76_Overgeared/actions/workflows/ci.yml/badge.svg)](https://github.com/Pavankalyan32/76_Overgeared/actions/workflows/ci.yml)
+
 Control 3D models in the browser with webcam hand gestures. Three.js renders the
 scene, MediaPipe Hands tracks the hand, and a small Express server serves the
 frontend, relays shared state over Socket.IO, and proxies the AI assistant.
@@ -36,6 +38,12 @@ Get a key from [Google AI Studio](https://aistudio.google.com/app/apikey). Resta
 the server afterwards. Without a key the app runs normally and the AI panel
 reports that it is disabled.
 
+`/api/ai` is rate limited to 10 requests per minute per IP, since each call can
+upload two screenshots and spends upstream quota. Exceeding it returns `429` and
+the chat panel shows how long to wait. Tune with `AI_RATE_MAX` and
+`AI_RATE_WINDOW_MS` in `.env`. If you ever run this behind a reverse proxy, set
+Express's `trust proxy` too, or every client will share a single bucket.
+
 ## Usage
 
 `index.html` is the landing page; any card takes you to `app.html`, the actual
@@ -51,7 +59,12 @@ reports that it is disabled.
 | Fist | Zoom in |
 | Two fingers | Zoom out |
 | Three fingers | Pan the viewport |
-| Two hands | Distance scales, midpoint translates (enable "Two-hand scale") |
+| Two hands | Distance scales, midpoint translates |
+
+Two-hand gestures need the "Two-hand scale" box ticked, which asks MediaPipe to
+track a second hand. It stays off by default because tracking two hands costs
+frame rate. Translation, by hand or gesture, only moves the object when "Lock
+center" is unticked; while it is on the object is held at the origin.
 
 ### Mouse and keyboard
 
@@ -71,8 +84,7 @@ glTF samples, or import your own `.glb`, `.gltf`, `.obj` (with optional `.mtl`)
 or `.stl` from disk or a URL. Imported models are recentred and normalised so
 the scale control behaves consistently.
 
-The "Globe" entry is a locally bundled glTF, so it works offline. Its texture is
-22MB, which is why it is not the default.
+The "Globe" entry is a locally bundled glTF, so it works offline.
 
 ## Project layout
 
@@ -98,8 +110,13 @@ jnnce-1/
 cd jnnce-1/server && npm test
 ```
 
-These cover the `/api/ai` input validation and the multiplayer state sanitiser,
-using Node's built-in test runner. No extra dependencies.
+These cover the `/api/ai` input validation, its rate limiter, and the multiplayer
+state sanitiser, using Node's built-in test runner. No extra dependencies.
+
+CI runs the same suite on Node 20, 22 and 24 for every push and pull request
+against `main`, and separately parses `app.js` as an ES module. That last check
+matters because the frontend has no build step, so nothing else would catch a
+syntax error before it reaches a browser. See `.github/workflows/ci.yml`.
 
 ## Multiplayer
 

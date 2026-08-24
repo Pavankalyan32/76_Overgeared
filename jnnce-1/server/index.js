@@ -28,8 +28,54 @@ const MAX_IMAGES = 2;
 const MAX_IMAGE_CHARS = 4_000_000; // ~3MB per decoded PNG
 const MAX_PROMPT_CHARS = 20_000;
 
+// Every /api/ai call spends upstream quota, so cap how often one client may ask.
+// Mutable rather than const so tests can tighten the window without restarting.
+const rateLimit = {
+  windowMs: Number(process.env.AI_RATE_WINDOW_MS || 60_000),
+  max: Number(process.env.AI_RATE_MAX || 10),
+};
+
+// ip -> ascending timestamps of calls still inside the window
+const rateLimitHits = new Map();
+
+// Sliding window. Counts requests before validation, so malformed payloads cannot
+// be used to probe the endpoint for free.
+// NOTE: keys on req.ip, which is the socket address unless `trust proxy` is set.
+// Behind a reverse proxy, configure that or every client shares one bucket.
+function checkRateLimit(ip, now = Date.now()) {
+  const cutoff = now - rateLimit.windowMs;
+
+  // ponytail: O(distinct recent IPs) sweep on every request keeps the map from
+  // growing without bound. Fine at this scale; swap for a periodic timer or an
+  // LRU if this ever fronts real traffic.
+  for (const [key, times] of rateLimitHits) {
+    if (times[times.length - 1] <= cutoff) rateLimitHits.delete(key);
+  }
+
+  const times = (rateLimitHits.get(ip) || []).filter((t) => t > cutoff);
+  if (times.length >= rateLimit.max) {
+    // Seconds until the oldest call in the window ages out.
+    return { allowed: false, retryAfter: Math.max(1, Math.ceil((times[0] - cutoff) / 1000)) };
+  }
+  times.push(now);
+  rateLimitHits.set(ip, times);
+  return { allowed: true, remaining: rateLimit.max - times.length };
+}
+
+function resetRateLimits() {
+  rateLimitHits.clear();
+}
+
 // Proxies Gemini so the API key stays on the server and never reaches the browser.
 app.post('/api/ai', async (req, res) => {
+  const limit = checkRateLimit(req.ip);
+  if (!limit.allowed) {
+    res.set('Retry-After', String(limit.retryAfter));
+    return res.status(429).json({
+      error: `Too many AI requests. Try again in ${limit.retryAfter}s.`,
+    });
+  }
+
   if (!GEMINI_API_KEY) {
     return res.status(503).json({
       error: 'AI is not configured. Set GEMINI_API_KEY in server/.env and restart the server.',
@@ -150,4 +196,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, server, io, sanitizeState };
+module.exports = { app, server, io, sanitizeState, checkRateLimit, resetRateLimits, rateLimit };

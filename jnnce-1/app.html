@@ -128,7 +128,7 @@
                             <option value="icosahedron">Icosahedron</option>
                             <option value="ring">Ring</option>
                             <option value="plane">Plane</option>
-                            <option value="globe">Globe (bundled GLTF, 22MB texture)</option>
+                            <option value="globe">Globe (bundled GLTF)</option>
                             <option value="helmet">DamagedHelmet (GLTF)</option>
                             <option value="duck">Duck (GLTF)</option>
                             <option value="fox">Fox (GLTF)</option>
@@ -170,7 +170,7 @@
                 <div class="section">
                     <div class="section-title">Gestures</div>
                     <div class="row">
-                        <label><input type="checkbox" id="toggle_twohand" /> Two-hand scale</label>
+                        <label title="Tracks a second hand. Costs frame rate, so off by default."><input type="checkbox" id="toggle_twohand" /> Two-hand scale</label>
                     </div>
                     <div class="row">
                         <label>Frame skip: <span id="frame_skip_value">0</span></label>
@@ -208,7 +208,7 @@
                 <li><strong>Three fingers</strong>: pan model</li>
                 <li><strong>One finger</strong>: pan model/viewport (based on lock center)</li>
                 <li><strong>Fist</strong>: zoom in</li>
-                <li><strong>Two hands</strong>: distance → scale, midpoint → translate</li>
+                <li><strong>Two hands</strong>: distance → scale, midpoint → translate (needs "Two-hand scale")</li>
             </ul>
         </div>
     </div>
