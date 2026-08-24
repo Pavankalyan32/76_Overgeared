@@ -4,6 +4,8 @@
   "private": true,
   "description": "3D model viewer controlled by webcam hand gestures",
   "license": "MIT",
+  "//": "app.js and gestures.js are ES modules loaded directly by the browser. Declaring it here stops Node warning when tests import gestures.js. The server has its own package.json pinning commonjs.",
+  "type": "module",
   "engines": {
     "node": ">=20.6"
   },

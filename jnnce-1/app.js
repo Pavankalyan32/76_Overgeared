@@ -6,12 +6,28 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+// Pose classification lives in its own module so it can be unit tested without a
+// browser or a camera. See jnnce-1/gestures.js.
+import {
+    distance as calculateDistance,
+    handSpan,
+    pinchRatio,
+    isFist,
+    isOneFinger,
+    isTwoFingers,
+    isThreeFingers,
+    describeHand,
+} from './gestures.js';
 
 // Basic Three.js scene setup
 let renderer, scene, camera;
 let cube, activeObject = null;
-let targetScale = 1.0; // gesture-driven scale
-let baselineScale = 1.0; // user slider base
+// Single owner of scale. Pinch, the slider, the number box, mouse ctrl-drag and
+// the two-hand gesture all write it through setBaselineScale, so recording and
+// multiplayer read it too. There used to be a second `targetScale` multiplied in
+// here, but nothing ever wrote it, which silently broke both of those features:
+// they recorded and transmitted a constant 1.0.
+let baselineScale = 1.0;
 let targetRotation = { x: 0, y: 0 };
 let targetPosition = { x: 0, y: 0 };
 
@@ -279,8 +295,7 @@ function animate() {
         // Smooth transforms
         if (activeObject) {
             const s = activeObject.scale.x;
-            const combinedTarget = targetScale * baselineScale;
-            const newS = lerp(s, combinedTarget, 0.18);
+            const newS = lerp(s, baselineScale, 0.18);
             activeObject.scale.setScalar(newS);
             activeObject.rotation.x = lerp(activeObject.rotation.x, targetRotation.x, 0.16);
             activeObject.rotation.y = lerp(activeObject.rotation.y, targetRotation.y, 0.16);
@@ -587,28 +602,11 @@ function renderHandTrackingInfo(landmarks) {
     overlayCtx.restore();
 }
 
-// Gesture logic
-function calculateDistance(a, b) { const dx = a.x - b.x; const dy = a.y - b.y; return Math.hypot(dx, dy); }
-
-function isFist(landmarks) {
-    // Check if fingers are curled by comparing tip positions to palm center
-    const palmCenter = {
-        x: (landmarks[0].x + landmarks[5].x + landmarks[9].x + landmarks[13].x + landmarks[17].x) / 5,
-        y: (landmarks[0].y + landmarks[5].y + landmarks[9].y + landmarks[13].y + landmarks[17].y) / 5
-    };
-    
-    // Check if finger tips are close to palm center
-    const fingerTips = [4, 8, 12, 16, 20]; // thumb, index, middle, ring, pinky tips
-    const avgDistance = fingerTips.reduce((sum, tipIndex) => {
-        return sum + calculateDistance(landmarks[tipIndex], palmCenter);
-    }, 0) / fingerTips.length;
-    
-    // Fist if average distance is small
-    return avgDistance < 0.08;
-}
-
+// Gesture logic. The pose predicates themselves live in ./gestures.js; the
+// handlers below own the latched state and the camera side effects. Each
+// predicate is passed its current latched state so it can apply hysteresis.
 function handleFistZoom(landmarks) {
-    if (isFist(landmarks)) {
+    if (isFist(landmarks, gestureState.fistActive)) {
         if (!gestureState.fistActive) {
             gestureState.fistActive = true;
             gestureState.lastFistTime = performance.now();
@@ -641,52 +639,8 @@ function handleFistZoom(landmarks) {
     }
 }
 
-function isTwoFingers(landmarks) {
-    // Calculate palm center for better reference
-    const palmCenter = {
-        x: (landmarks[0].x + landmarks[5].x + landmarks[9].x + landmarks[13].x + landmarks[17].x) / 5,
-        y: (landmarks[0].y + landmarks[5].y + landmarks[9].y + landmarks[13].y + landmarks[17].y) / 5
-    };
-    
-    // Check if exactly two fingers are extended (index and middle)
-    const fingerTips = [8, 12]; // index and middle finger tips
-    const fingerBases = [5, 9]; // index and middle finger bases
-    
-    // Check if these two fingers are extended (distance from palm center)
-    const indexExtended = calculateDistance(landmarks[fingerTips[0]], palmCenter) > 0.15;
-    const middleExtended = calculateDistance(landmarks[fingerTips[1]], palmCenter) > 0.15;
-    
-    // Check if other fingers are closed (distance from palm center)
-    const ringFinger = calculateDistance(landmarks[16], palmCenter) < 0.12;
-    const pinkyFinger = calculateDistance(landmarks[20], palmCenter) < 0.12;
-    const thumbClosed = calculateDistance(landmarks[4], palmCenter) < 0.12;
-    
-    // Additional check: ensure fingers are pointing upward
-    const indexPointingUp = landmarks[fingerTips[0]].y < landmarks[fingerBases[0]].y;
-    const middlePointingUp = landmarks[fingerTips[1]].y < landmarks[fingerBases[1]].y;
-    
-    const result = indexExtended && middleExtended && indexPointingUp && middlePointingUp && 
-                   ringFinger && pinkyFinger && thumbClosed;
-    
-    // Debug logging
-    if (featureFlags.gestureDebug) {
-        console.log('Two fingers check:', {
-            indexExtended,
-            middleExtended,
-            indexPointingUp,
-            middlePointingUp,
-            ringFinger,
-            pinkyFinger,
-            thumbClosed,
-            result
-        });
-    }
-    
-    return result;
-}
-
 function handleTwoFingerZoom(landmarks) {
-    if (isTwoFingers(landmarks)) {
+    if (isTwoFingers(landmarks, gestureState.twoFingersActive)) {
 
         if (!gestureState.twoFingersActive) {
             gestureState.twoFingersActive = true;
@@ -726,81 +680,8 @@ function handleTwoFingerZoom(landmarks) {
     }
 }
 
-function isOneFinger(landmarks) {
-    // Calculate palm center for better reference
-    const palmCenter = {
-        x: (landmarks[0].x + landmarks[5].x + landmarks[9].x + landmarks[13].x + landmarks[17].x) / 5,
-        y: (landmarks[0].y + landmarks[5].y + landmarks[9].y + landmarks[13].y + landmarks[17].y) / 5
-    };
-    
-    // Check if only index finger is extended
-    const indexTip = landmarks[8]; // index finger tip
-    const indexBase = landmarks[5]; // index finger base
-    
-    // Check if index finger is extended (distance from palm center)
-    const indexExtended = calculateDistance(indexTip, palmCenter) > 0.15;
-    
-    // Check if other fingers are closed (distance from palm center)
-    const middleFinger = calculateDistance(landmarks[12], palmCenter) < 0.12;
-    const ringFinger = calculateDistance(landmarks[16], palmCenter) < 0.12;
-    const pinkyFinger = calculateDistance(landmarks[20], palmCenter) < 0.12;
-    const thumbClosed = calculateDistance(landmarks[4], palmCenter) < 0.12;
-    
-    // Additional check: ensure index finger is pointing upward
-    const indexPointingUp = indexTip.y < indexBase.y;
-    
-    return indexExtended && indexPointingUp && middleFinger && ringFinger && pinkyFinger && thumbClosed;
-}
-
-function isThreeFingers(landmarks) {
-    // Calculate palm center for better reference
-    const palmCenter = {
-        x: (landmarks[0].x + landmarks[5].x + landmarks[9].x + landmarks[13].x + landmarks[17].x) / 5,
-        y: (landmarks[0].y + landmarks[5].y + landmarks[9].y + landmarks[13].y + landmarks[17].y) / 5
-    };
-    
-    // Check if exactly three fingers are extended (index, middle, ring)
-    const fingerTips = [8, 12, 16]; // index, middle, ring finger tips
-    const fingerBases = [5, 9, 13]; // index, middle, ring finger bases
-    
-    // Check if these three fingers are extended (distance from palm center)
-    const indexExtended = calculateDistance(landmarks[fingerTips[0]], palmCenter) > 0.15;
-    const middleExtended = calculateDistance(landmarks[fingerTips[1]], palmCenter) > 0.15;
-    const ringExtended = calculateDistance(landmarks[fingerTips[2]], palmCenter) > 0.15;
-    
-    // Check if other fingers are closed (distance from palm center)
-    const pinkyFinger = calculateDistance(landmarks[20], palmCenter) < 0.12;
-    const thumbClosed = calculateDistance(landmarks[4], palmCenter) < 0.12;
-    
-    // Additional check: ensure fingers are pointing upward
-    const indexPointingUp = landmarks[fingerTips[0]].y < landmarks[fingerBases[0]].y;
-    const middlePointingUp = landmarks[fingerTips[1]].y < landmarks[fingerBases[1]].y;
-    const ringPointingUp = landmarks[fingerTips[2]].y < landmarks[fingerBases[2]].y;
-    
-    const result = indexExtended && middleExtended && ringExtended && 
-                   indexPointingUp && middlePointingUp && ringPointingUp &&
-                   pinkyFinger && thumbClosed;
-    
-    // Debug logging
-    if (featureFlags.gestureDebug) {
-        console.log('Three fingers check:', {
-            indexExtended,
-            middleExtended,
-            ringExtended,
-            indexPointingUp,
-            middlePointingUp,
-            ringPointingUp,
-            pinkyFinger,
-            thumbClosed,
-            result
-        });
-    }
-    
-    return result;
-}
-
 function handleThreeFingerPan(landmarks) {
-    if (isThreeFingers(landmarks)) {
+    if (isThreeFingers(landmarks, gestureState.threeFingerActive)) {
         // Use the center point between the three fingers for panning
         const indexTip = landmarks[8];
         const middleTip = landmarks[12];
@@ -862,7 +743,7 @@ function handleThreeFingerPan(landmarks) {
 }
 
 function handleOneFingerPan(landmarks) {
-    if (isOneFinger(landmarks)) {
+    if (isOneFinger(landmarks, gestureState.oneFingerActive)) {
 
         const indexTip = landmarks[8];
         const currentPos = { x: indexTip.x, y: indexTip.y };
@@ -985,21 +866,24 @@ function onResults(results) {
         // Show hand tracking info in debug mode
         if (featureFlags.gestureDebug) {
             renderHandTrackingInfo(landmarks);
+            // One readout of every measurement the classifiers use, so a
+            // misfiring gesture can be traced to the number that caused it.
+            console.log('hand:', describeHand(landmarks, false));
         }
 
-        // Check for fist zooming first
+        // Every handler is called on every frame, including ones that cannot
+        // match, because each also owns its own release branch. Short-circuiting
+        // the chain would leave a previously latched gesture stuck active and
+        // suppressing everything else forever. Do not "optimise" this into an
+        // else-if chain without moving the release logic out first.
         handleFistZoom(landmarks);
-        
-        // Check for two-finger zooming second
         handleTwoFingerZoom(landmarks);
-        
-        // Check for one-finger panning third
         handleOneFingerPan(landmarks);
-        
-        // Check for three-finger viewport panning fourth
         handleThreeFingerPan(landmarks);
-        
-        // If fist, two fingers, one finger, or three fingers are active, don't process other gestures
+
+        // These four latch and take precedence over pinch, palm and rotate. The
+        // active gesture name is already on screen, so when this suppresses the
+        // others the cause is visible rather than silent.
         if (gestureState.fistActive || gestureState.twoFingersActive || gestureState.oneFingerActive || gestureState.threeFingerActive) {
             return;
         }
@@ -1011,14 +895,15 @@ function onResults(results) {
 
         const pinchDistance = calculateDistance(thumbTip, indexTip);
         // Normalize pinch by hand span to reduce perspective variance
-        const span = Math.max(0.001, calculateDistance(landmarks[5], landmarks[17]));
-        const pinchNorm = pinchDistance / span;
+        const span = handSpan(landmarks);
+        const pinchNorm = pinchRatio(landmarks);
         // Hysteresis around thresholds for stability
         if (!gestureState.pinchActive && pinchNorm < PINCH.start) gestureState.pinchActive = true;
         if (gestureState.pinchActive && pinchNorm > PINCH.end) gestureState.pinchActive = false;
         const isPinching = gestureState.pinchActive;
-        const indexMiddleDistance = calculateDistance(indexTip, middleTip);
-        const isOpenPalm = !isPinching && pinchNorm > (PINCH.end + 0.01) && indexMiddleDistance > 0.09;
+        // Also expressed in hand spans, so an open palm reads the same near or far.
+        const indexMiddleSpread = calculateDistance(indexTip, middleTip) / span;
+        const isOpenPalm = !isPinching && pinchNorm > (PINCH.end + 0.01) && indexMiddleSpread > 0.5;
 
         if (isPinching) {
             setGesture('Pinch → Scale');
@@ -1075,9 +960,8 @@ function onResults(results) {
         const midx = (aIndex.x + bIndex.x) / 2;
         const midy = (aIndex.y + bIndex.y) / 2;
         setGesture('Two hands → Scale + Translate');
-        // Drive baselineScale, not targetScale: animate() renders the product of
-        // the two, and pinch plus the slider both own baselineScale. Writing
-        // targetScale here would multiply with whatever the user last pinched to.
+        // Absolute scale from hand separation, through the one scale owner so the
+        // slider and any connected peers follow.
         setBaselineScale(THREE.MathUtils.clamp(0.2 + dist * 6.0, 0.1, 8.0));
         targetPosition.x = (midx - 0.5) * 2 * 1.1;
         targetPosition.y = (0.5 - midy) * 2 * 0.9;
@@ -1136,7 +1020,7 @@ function stopRecording() { recording.active = false; }
 function pushFrame() {
     if (!recording.active || !activeObject) return;
     const t = performance.now() - recording.startTime;
-    recording.frames.push({ t, s: targetScale, rx: targetRotation.x, ry: targetRotation.y, px: targetPosition.x, py: targetPosition.y });
+    recording.frames.push({ t, s: baselineScale, rx: targetRotation.x, ry: targetRotation.y, px: targetPosition.x, py: targetPosition.y });
 }
 function clearRecording() { recording.frames = []; }
 function replayRecording() {
@@ -1149,7 +1033,7 @@ function replayRecording() {
         const elapsed = performance.now() - start;
         while (i < recording.frames.length && recording.frames[i].t <= elapsed) {
             const f = recording.frames[i++];
-            targetScale = f.s; targetRotation.x = f.rx; targetRotation.y = f.ry; targetPosition.x = f.px; targetPosition.y = f.py;
+            setBaselineScale(f.s); targetRotation.x = f.rx; targetRotation.y = f.ry; targetPosition.x = f.px; targetPosition.y = f.py;
         }
         if (i >= recording.frames.length) {
             clearInterval(replayTimer); replayTimer = null; suppressHands = false;
@@ -1531,7 +1415,19 @@ async function loadCustomFromFile(file) {
 }
 
 // Multiplayer (Socket.io)
-let socket = null, lastEmit = 0;
+let socket = null, lastEmit = 0, applyingRemoteState = false;
+
+// The room lives in the URL fragment, so sharing the link shares the room and no
+// separate invite mechanism is needed. Absent a fragment we mint a random room
+// rather than defaulting everyone into one shared space.
+function currentRoom() {
+    const fromHash = location.hash.replace(/^#/, '').trim();
+    if (/^[A-Za-z0-9_-]{1,64}$/.test(fromHash)) return fromHash;
+    const generated = Math.random().toString(36).slice(2, 10);
+    location.hash = generated;
+    return generated;
+}
+
 function initSocket() {
     if (!window.io) {
         console.warn('Socket.IO client not loaded; multiplayer disabled.');
@@ -1539,21 +1435,58 @@ function initSocket() {
         if (toggle) { toggle.disabled = true; toggle.title = 'Socket.IO unavailable'; }
         return;
     }
+
+    const room = currentRoom();
+    const roomLabel = document.getElementById('room_id');
+    if (roomLabel) roomLabel.value = room;
+
     // Same origin as the page, so this works on any host/port the server runs on.
-    socket = window.io({ autoConnect: false });
-    socket.on('connect', () => console.log('Connected to multiplayer'));
-    socket.on('connect_error', (err) => console.warn('Multiplayer connection failed:', err.message));
+    socket = window.io({ autoConnect: false, auth: { room } });
+
+    socket.on('connect', () => console.log(`Connected to multiplayer room "${room}"`));
+    socket.on('joined', ({ room: joined }) => setMultiplayerStatus(`Room ${joined}`));
+    socket.on('room_error', ({ error }) => setMultiplayerStatus(error));
+
+    socket.on('connect_error', (err) => {
+        // The server only sends this code when a passphrase is configured.
+        if (err.data && err.data.code === 'PASSPHRASE_REQUIRED') {
+            const phrase = prompt('This server requires a multiplayer passphrase:');
+            if (phrase) {
+                socket.auth = { room, passphrase: phrase };
+                socket.connect();
+                return;
+            }
+            setMultiplayerStatus('Passphrase required');
+        } else {
+            setMultiplayerStatus(`Connection failed: ${err.message}`);
+        }
+        console.warn('Multiplayer connection failed:', err.message);
+    });
+
     socket.on('state', (state) => {
         if (!state) return;
-        targetScale = state.s; targetRotation.x = state.rx; targetRotation.y = state.ry; targetPosition.x = state.px; targetPosition.y = state.py;
+        // Guard so applying a peer's state does not immediately echo it back.
+        applyingRemoteState = true;
+        setBaselineScale(state.s);
+        targetRotation.x = state.rx;
+        targetRotation.y = state.ry;
+        targetPosition.x = state.px;
+        targetPosition.y = state.py;
+        applyingRemoteState = false;
     });
 }
+
+function setMultiplayerStatus(text) {
+    const el = document.getElementById('room_status');
+    if (el) el.textContent = text;
+}
+
 function maybeEmitState() {
-    if (!socket || !featureFlags.multiplayer) return;
+    if (!socket || !featureFlags.multiplayer || applyingRemoteState) return;
     const now = performance.now();
-    if (now - lastEmit < 50) return; // 20 Hz
+    if (now - lastEmit < 50) return; // 20 Hz; the server enforces its own ceiling
     lastEmit = now;
-    socket.emit('state', { s: targetScale, rx: targetRotation.x, ry: targetRotation.y, px: targetPosition.x, py: targetPosition.y });
+    socket.emit('state', { s: baselineScale, rx: targetRotation.x, ry: targetRotation.y, px: targetPosition.x, py: targetPosition.y });
 }
 
 // AR mode
@@ -1663,7 +1596,6 @@ function resetModels() {
     cube.scale.setScalar(1);
     
     // Reset gesture targets
-    targetScale = 1.0;
     targetRotation = { x: 0, y: 0 };
     targetPosition = { x: 0, y: 0 };
     baselineScale = 1.0;
@@ -1789,7 +1721,25 @@ function bindUI() {
         if (socket) {
             if (featureFlags.multiplayer) socket.connect(); else socket.disconnect();
         }
+        if (!featureFlags.multiplayer) setMultiplayerStatus('Not connected');
     });
+
+    const btnCopyRoom = document.getElementById('btn_copy_room');
+    if (btnCopyRoom) {
+        btnCopyRoom.addEventListener('click', async () => {
+            // The room is the URL fragment, so the current address is the invite.
+            try {
+                await navigator.clipboard.writeText(location.href);
+                btnCopyRoom.textContent = 'Copied';
+            } catch {
+                // Clipboard needs a secure context and permission; fall back to
+                // selecting the id so it can be copied by hand.
+                document.getElementById('room_id')?.select();
+                btnCopyRoom.textContent = 'Press Ctrl+C';
+            }
+            setTimeout(() => { btnCopyRoom.textContent = 'Copy link'; }, 1500);
+        });
+    }
     ui.lockCenter = document.getElementById('toggle_lock_center');
     ui.lockCenter.addEventListener('change', (e) => { lockCenter = !!e.target.checked; if (orbitControls) orbitControls.enablePan = !lockCenter; });
     ui.frameSkip.addEventListener('input', (e) => { frameSkip = Number(e.target.value); ui.frameSkipValue.textContent = String(frameSkip); });

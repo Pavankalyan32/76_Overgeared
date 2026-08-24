@@ -184,6 +184,15 @@
                         <label><input type="checkbox" id="toggle_hologram" /> Hologram mode</label>
                         <label><input type="checkbox" id="toggle_multiplayer" /> Multiplayer</label>
                     </div>
+                    <div class="row">
+                        <label for="room_id">Room:</label>
+                        <input type="text" id="room_id" readonly aria-describedby="room_status"
+                               title="Anyone opening this page with the same room id shares the object" />
+                        <button id="btn_copy_room" class="ghost" title="Copy a link to this room">Copy link</button>
+                    </div>
+                    <div class="row">
+                        <small id="room_status" role="status">Not connected</small>
+                    </div>
                     <div class="row" id="ar_container"></div>
                 </div>
 
