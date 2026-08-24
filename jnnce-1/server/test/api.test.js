@@ -9,8 +9,11 @@ const assert = require('node:assert/strict');
 // A fake key makes the route validate instead of short-circuiting on 503.
 // It is never used, because every request here is expected to fail validation.
 process.env.GEMINI_API_KEY = 'test-key-never-sent-upstream';
+// Raise the rate limit so the validation tests below, which make many calls from
+// one address, are not throttled. The limiter gets its own tests further down.
+process.env.AI_RATE_MAX = '1000';
 
-const { server } = require('../index.js');
+const { server, rateLimit, resetRateLimits, checkRateLimit } = require('../index.js');
 
 let base;
 
@@ -20,6 +23,9 @@ test.before(async () => {
 });
 
 test.after(() => server.close());
+
+// Keep tests independent of each other's request counts.
+test.beforeEach(() => resetRateLimits());
 
 const post = (body) =>
   fetch(`${base}/api/ai`, {
@@ -99,5 +105,72 @@ test('multiplayer relay accepts only five finite numbers', () => {
     { ...valid, px: null },
   ]) {
     assert.equal(sanitizeState(bad), null, `should reject ${JSON.stringify(bad)}`);
+  }
+});
+
+// The limiter is exercised directly as well as over HTTP, because passing an
+// explicit clock lets us prove the window expires without sleeping for a minute.
+test('rate limiter allows up to max calls then blocks', () => {
+  const original = rateLimit.max;
+  rateLimit.max = 3;
+  try {
+    const t = 1_000_000;
+    assert.equal(checkRateLimit('1.2.3.4', t).allowed, true);
+    assert.equal(checkRateLimit('1.2.3.4', t + 1).allowed, true);
+    assert.equal(checkRateLimit('1.2.3.4', t + 2).allowed, true);
+
+    const blocked = checkRateLimit('1.2.3.4', t + 3);
+    assert.equal(blocked.allowed, false);
+    assert.ok(blocked.retryAfter >= 1, 'retryAfter must be a positive number of seconds');
+  } finally {
+    rateLimit.max = original;
+  }
+});
+
+test('rate limiter is per IP, so one caller cannot lock out another', () => {
+  const original = rateLimit.max;
+  rateLimit.max = 2;
+  try {
+    const t = 2_000_000;
+    checkRateLimit('10.0.0.1', t);
+    checkRateLimit('10.0.0.1', t + 1);
+    assert.equal(checkRateLimit('10.0.0.1', t + 2).allowed, false, 'first IP exhausted');
+    assert.equal(checkRateLimit('10.0.0.2', t + 2).allowed, true, 'second IP unaffected');
+  } finally {
+    rateLimit.max = original;
+  }
+});
+
+test('rate limiter forgets calls once the window passes', () => {
+  const original = rateLimit.max;
+  rateLimit.max = 1;
+  try {
+    const t = 3_000_000;
+    assert.equal(checkRateLimit('172.16.0.1', t).allowed, true);
+    assert.equal(checkRateLimit('172.16.0.1', t + 1).allowed, false, 'blocked inside the window');
+
+    // One millisecond past the window the earlier call no longer counts.
+    const after = t + rateLimit.windowMs + 1;
+    assert.equal(checkRateLimit('172.16.0.1', after).allowed, true, 'allowed after expiry');
+  } finally {
+    rateLimit.max = original;
+  }
+});
+
+test('POST /api/ai returns 429 with Retry-After once the limit is hit', async () => {
+  const original = rateLimit.max;
+  rateLimit.max = 2;
+  try {
+    // Invalid bodies are enough: the limiter runs before validation, so these
+    // still count and no upstream call is made.
+    assert.equal((await post({})).status, 400);
+    assert.equal((await post({})).status, 400);
+
+    const res = await post({});
+    assert.equal(res.status, 429);
+    assert.ok(Number(res.headers.get('retry-after')) >= 1, 'Retry-After header must be set');
+    assert.match((await res.json()).error, /Too many AI requests/);
+  } finally {
+    rateLimit.max = original;
   }
 });

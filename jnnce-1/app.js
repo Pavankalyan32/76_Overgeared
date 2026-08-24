@@ -324,6 +324,19 @@ function animate() {
 let hands, cameraFeed, overlayCtx;
 let suppressHands = false; // pause during AR
 
+// Tracking a second hand costs real frame time, so only ask for it when the
+// two-hand gesture is enabled. Without this the `handsLms.length >= 2` branch in
+// onResults is unreachable and the "Two-hand scale" toggle does nothing.
+function applyHandOptions() {
+    if (!hands) return;
+    hands.setOptions({
+        maxNumHands: featureFlags.twoHand ? 2 : 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6
+    });
+}
+
 async function initMediaPipe() {
     const videoEl = document.getElementById('input_video');
     const overlay = document.getElementById('overlay');
@@ -334,13 +347,7 @@ async function initMediaPipe() {
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
     });
     
-    // Set fixed quality settings for optimal performance
-    hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence: 0.6
-    });
+    applyHandOptions();
     hands.onResults(onResults);
 
     // Camera utils
@@ -1068,7 +1075,10 @@ function onResults(results) {
         const midx = (aIndex.x + bIndex.x) / 2;
         const midy = (aIndex.y + bIndex.y) / 2;
         setGesture('Two hands → Scale + Translate');
-        targetScale = THREE.MathUtils.clamp(0.2 + dist * 6.0, 0.1, 8.0);
+        // Drive baselineScale, not targetScale: animate() renders the product of
+        // the two, and pinch plus the slider both own baselineScale. Writing
+        // targetScale here would multiply with whatever the user last pinched to.
+        setBaselineScale(THREE.MathUtils.clamp(0.2 + dist * 6.0, 0.1, 8.0));
         targetPosition.x = (midx - 0.5) * 2 * 1.1;
         targetPosition.y = (0.5 - midy) * 2 * 0.9;
     }
@@ -1150,7 +1160,7 @@ function replayRecording() {
 // GLTF model loading
 let currentModel = null;
 const SAMPLE_MODELS = {
-    // Bundled locally, so this one works offline. Its texture is 22MB, hence not the default.
+    // Bundled locally, so this one works offline.
     globe: './scene.gltf',
     helmet: 'https://rawcdn.githack.com/mrdoob/three.js/r160/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf',
     duck: 'https://rawcdn.githack.com/mrdoob/three.js/r160/examples/models/gltf/Duck/glTF/Duck.gltf',
@@ -1766,7 +1776,13 @@ function bindUI() {
     ui.toggleTracking = document.getElementById('toggle_tracking');
     ui.toggleGestureDebug = document.getElementById('toggle_gesture_debug');
 
-    ui.twoHand.addEventListener('change', (e) => featureFlags.twoHand = e.target.checked);
+    ui.twoHand.addEventListener('change', (e) => {
+        featureFlags.twoHand = e.target.checked;
+        // Re-ask MediaPipe for the second hand, and drop any single-hand gesture
+        // that latched before the switch so it cannot suppress the two-hand branch.
+        applyHandOptions();
+        resetGestureStates();
+    });
     ui.hologram.addEventListener('change', (e) => featureFlags.hologram = e.target.checked);
     ui.multiplayer.addEventListener('change', (e) => {
         featureFlags.multiplayer = e.target.checked;
