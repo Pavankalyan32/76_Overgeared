@@ -172,16 +172,73 @@ function sanitizeState(state) {
   return clean;
 }
 
-// Shared-object relay. ponytail: single global room, last write wins. Add a room
-// id to the handshake and key this state by room when more than one session matters.
-let latestState = null;
+// Room ids come from clients, so they are used as Map keys and Socket.IO room
+// names only after passing this. Conservative charset, bounded length.
+const ROOM_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+function isValidRoom(room) {
+  return typeof room === 'string' && ROOM_PATTERN.test(room);
+}
+
+// Optional shared secret. Unset by default so local development needs no setup;
+// set it before exposing the port to anyone you would not hand the object to.
+const MULTIPLAYER_PASSPHRASE = process.env.MULTIPLAYER_PASSPHRASE || '';
+
+// Clients emit at 20Hz. This is the server-side ceiling, because the client
+// self-limiting is a courtesy a modified client can simply ignore.
+const STATE_RATE = {
+  windowMs: Number(process.env.STATE_RATE_WINDOW_MS || 1000),
+  max: Number(process.env.STATE_RATE_MAX || 40),
+};
+
+// One current state per room, rather than one for everybody. Rooms are deleted
+// when the last member leaves so this cannot grow without bound.
+const roomState = new Map();
+
+if (MULTIPLAYER_PASSPHRASE) {
+  io.use((socket, next) => {
+    const given = socket.handshake.auth && socket.handshake.auth.passphrase;
+    if (given === MULTIPLAYER_PASSPHRASE) return next();
+    // The client checks for this exact code to know it should ask for the phrase.
+    const err = new Error('passphrase required');
+    err.data = { code: 'PASSPHRASE_REQUIRED' };
+    next(err);
+  });
+}
+
 io.on('connection', (socket) => {
-  if (latestState) socket.emit('state', latestState);
+  const requested = socket.handshake.auth && socket.handshake.auth.room;
+  if (!isValidRoom(requested)) {
+    socket.emit('room_error', { error: 'Invalid room id. Use 1-64 characters: A-Z a-z 0-9 _ -' });
+    socket.disconnect(true);
+    return;
+  }
+  const room = requested;
+  socket.join(room);
+  socket.emit('joined', { room });
+
+  // Bring the newcomer in line with whatever the room is already showing.
+  const current = roomState.get(room);
+  if (current) socket.emit('state', current);
+
+  let times = [];
   socket.on('state', (state) => {
+    const now = Date.now();
+    const cutoff = now - STATE_RATE.windowMs;
+    times = times.filter((t) => t > cutoff);
+    if (times.length >= STATE_RATE.max) return; // drop, do not disconnect
+    times.push(now);
+
     const clean = sanitizeState(state);
     if (!clean) return;
-    latestState = clean;
-    socket.broadcast.emit('state', clean);
+    roomState.set(room, clean);
+    // Scoped to the room, so unrelated sessions no longer fight over one object.
+    socket.to(room).emit('state', clean);
+  });
+
+  socket.on('disconnect', () => {
+    // adapter room entry is gone by now if this was the last member
+    if (!io.sockets.adapter.rooms.get(room)) roomState.delete(room);
   });
 });
 
@@ -196,4 +253,15 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, server, io, sanitizeState, checkRateLimit, resetRateLimits, rateLimit };
+module.exports = {
+  app,
+  server,
+  io,
+  sanitizeState,
+  checkRateLimit,
+  resetRateLimits,
+  rateLimit,
+  isValidRoom,
+  roomState,
+  STATE_RATE,
+};

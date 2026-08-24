@@ -66,6 +66,17 @@ track a second hand. It stays off by default because tracking two hands costs
 frame rate. Translation, by hand or gesture, only moves the object when "Lock
 center" is unticked; while it is on the object is held at the origin.
 
+The four counted-finger poses latch, and while one is held it takes precedence
+over pinch, palm and rotate. That is intentional, and the active gesture is always
+shown in the navbar, so when it happens you can see why.
+
+Pose thresholds live in `THRESHOLDS` in `jnnce-1/gestures.js`, expressed as
+multiples of hand span rather than raw image distance. That makes a gesture read
+the same whether your hand is near the camera or far from it. The numbers
+themselves were derived geometrically rather than measured against real hands, so
+if a gesture feels too eager or too reluctant, tick "Debug mode" to print the
+measured extensions for your hand and adjust from there.
+
 ### Mouse and keyboard
 
 Gestures are optional. The same controls are always available:
@@ -98,9 +109,10 @@ jnnce-1/
   style.css               # styles for the workspace
   scene.gltf / scene.bin  # bundled "Globe" model
   textures/               # its texture
+  gestures.js             # pose classification, pure functions, unit tested
   server/
     index.js              # static hosting, Socket.IO relay, Gemini proxy
-    test/api.test.js      # checks on the AI proxy and the state relay
+    test/                 # api, rooms, passphrase and gesture suites
     .env.example
 ```
 
@@ -110,23 +122,54 @@ jnnce-1/
 cd jnnce-1/server && npm test
 ```
 
-These cover the `/api/ai` input validation, its rate limiter, and the multiplayer
-state sanitiser, using Node's built-in test runner. No extra dependencies.
+51 tests using Node's built-in runner, in four files:
 
-CI runs the same suite on Node 20, 22 and 24 for every push and pull request
-against `main`, and separately parses `app.js` as an ES module. That last check
-matters because the frontend has no build step, so nothing else would catch a
-syntax error before it reaches a browser. See `.github/workflows/ci.yml`.
+| File | Covers |
+| --- | --- |
+| `api.test.js` | `/api/ai` validation, its rate limiter, state sanitising, room-id rules |
+| `rooms.test.js` | the relay end to end, with real Socket.IO clients |
+| `passphrase.test.js` | the optional multiplayer passphrase gate |
+| `gestures.test.mjs` | pose classification, via synthetic hand landmarks |
+
+The gesture tests are the interesting ones. `gestures.js` is deliberately free of
+three.js and DOM references, so `hand-fixtures.mjs` can build 21-point hands for
+each pose at a range of apparent sizes and feed them straight through the
+classifiers. That covers the logic without a camera. It does not cover whether the
+app feels good to use, which still needs a person and a webcam.
+
+CI runs the suite on Node 20, 22 and 24 for every push and pull request against
+`main`, and separately parses `app.js` and `gestures.js` as ES modules. That last
+check matters because the frontend has no build step, so nothing else would catch
+a syntax error before it reaches a browser. See `.github/workflows/ci.yml`.
 
 ## Multiplayer
 
-Ticking "Multiplayer" syncs object scale, rotation and position to every other
-connected client.
+Ticking "Multiplayer" syncs the object's scale, rotation and position to everyone
+else in the same room.
 
-**This relay is unauthenticated and has a single global room.** Anyone who can
-reach the port can read and overwrite the shared state. It is fine on a trusted
-local network; add authentication and per-room routing before exposing it to the
-internet.
+Rooms are identified by the URL fragment, so the address bar is the invite: open
+`http://localhost:3000/app.html#studio` and anyone who loads the same link shares
+your object. Arriving without a fragment mints a random room rather than dropping
+you into a shared space with strangers. "Copy link" puts the current address on
+the clipboard.
+
+State is scoped per room, so unrelated sessions no longer overwrite each other.
+Only five finite numbers are accepted and relayed, and inbound updates are capped
+per socket, since the client's 20Hz self-limit is a courtesy a modified client can
+ignore.
+
+There is still no per-user identity. Anyone who knows or guesses a room id can
+join it and move the object. For a shared machine or a trusted network that is
+usually fine. Before exposing the port more widely, set a passphrase:
+
+```bash
+# in jnnce-1/server/.env
+MULTIPLAYER_PASSPHRASE=something-hard-to-guess
+```
+
+With that set, the server refuses connections that do not present it and the
+browser asks for it once. It is a single shared secret, not accounts: it keeps
+strangers out, it does not tell two participants apart.
 
 ## Notes on AI features
 

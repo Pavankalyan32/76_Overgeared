@@ -174,3 +174,41 @@ test('POST /api/ai returns 429 with Retry-After once the limit is hit', async ()
     rateLimit.max = original;
   }
 });
+
+// ------------------------------------------------------------- rooms (#8)
+
+test('room ids are validated before being used as keys', () => {
+  const { isValidRoom } = require('../index.js');
+
+  for (const ok of ['a', 'lobby', 'A-Z_0-9', 'x'.repeat(64), 'abc123']) {
+    assert.equal(isValidRoom(ok), true, `should accept ${JSON.stringify(ok)}`);
+  }
+
+  // Rejected because these become Map keys and Socket.IO room names.
+  for (const bad of [
+    '',
+    ' ',
+    'x'.repeat(65),
+    'has space',
+    'slash/es',
+    'dots.dots',
+    'unicode\u00e9',
+    '__proto__x!',
+    null,
+    undefined,
+    42,
+    {},
+    ['lobby'],
+  ]) {
+    assert.equal(isValidRoom(bad), false, `should reject ${JSON.stringify(bad)}`);
+  }
+});
+
+test('inbound state rate has a configured ceiling', () => {
+  const { STATE_RATE } = require('../index.js');
+  // The client emits at 20Hz; the server ceiling must sit above that or normal
+  // use would be throttled, and well below unbounded.
+  assert.ok(STATE_RATE.max > 20, 'must not throttle a well behaved client');
+  assert.ok(STATE_RATE.max <= 200, 'must still be a ceiling');
+  assert.ok(STATE_RATE.windowMs > 0);
+});

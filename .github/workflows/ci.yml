@@ -51,10 +51,12 @@ jobs:
       # app.js is an ES module loaded straight into the browser with no bundler,
       # so nothing else would catch a parse error before a user hits it.
       # --check needs the .mjs extension to treat the file as a module.
-      - name: Parse app.js as an ES module
+      - name: Parse frontend ES modules
         run: |
           cp jnnce-1/app.js "$RUNNER_TEMP/app.mjs"
           node --check "$RUNNER_TEMP/app.mjs"
+          cp jnnce-1/gestures.js "$RUNNER_TEMP/gestures.mjs"
+          node --check "$RUNNER_TEMP/gestures.mjs"
 
       - name: Parse server entrypoint
         run: node --check jnnce-1/server/index.js
