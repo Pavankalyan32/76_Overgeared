@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gesture Calibration - Tesseract</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #0c0e12; color: #f6f1ea; min-height: 100vh; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        h1 { color: #ffce99; text-align: center; margin-bottom: 10px; }
+        .subtitle { text-align: center; color: #cdbba5; margin-bottom: 30px; }
+        .video-wrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto 20px; border-radius: 12px; overflow: hidden; border: 2px solid #3a2e22; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+        #input_video, #overlay { width: 100%; height: auto; display: block; }
+        #overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
+        .controls { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 20px; }
+        .btn { padding: 12px 24px; font-size: 14px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: linear-gradient(135deg, #ffce99, #ffd9b8); color: #241b12; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(255, 206, 153, 0.4); }
+        .btn-secondary { background: #241b12; color: #ffe8c9; border: 1px solid #5a472f; }
+        .btn-secondary:hover:not(:disabled) { background: #2d2318; border-color: #6a5337; }
+        .btn-danger { background: #c0392b; color: white; }
+        .btn-danger:hover:not(:disabled) { background: #e74c3c; }
+        .status { text-align: center; padding: 16px; background: rgba(40, 31, 22, 0.8); border-radius: 12px; border: 1px solid #3a2e22; margin-bottom: 20px; }
+        .status .label { font-weight: 700; color: #ffce99; }
+        .status .value { color: #ffe8c9; }
+        .progress { height: 8px; background: #241b12; border-radius: 4px; overflow: hidden; margin: 16px 0; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #ffce99, #ffd9b8); border-radius: 4px; transition: width 0.3s; }
+        .pose-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .pose-card { padding: 16px; background: rgba(40, 31, 22, 0.6); border: 1px solid #4a3a2b; border-radius: 12px; text-align: center; transition: all 0.2s; }
+        .pose-card.active { border-color: #ffce99; background: rgba(255, 206, 153, 0.1); }
+        .pose-card.completed { border-color: #44ff44; background: rgba(68, 255, 68, 0.1); }
+        .pose-icon { font-size: 2rem; margin-bottom: 8px; }
+        .pose-name { font-weight: 700; font-size: 14px; color: #ffce99; }
+        .pose-count { font-size: 12px; color: #cdbba5; }
+        .distance-selector { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+        .dist-btn { padding: 8px 16px; background: #241b12; color: #cdbba5; border: 1px solid #5a472f; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .dist-btn.active { background: #ffce99; color: #241b12; border-color: #ffce99; }
+        .export-area { text-align: center; padding: 20px; background: rgba(40, 31, 22, 0.8); border-radius: 12px; border: 1px solid #3a2e22; }
+        .export-area textarea { width: 100%; min-height: 150px; background: #0c0e12; color: #ffce99; border: 1px solid #5a472f; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; resize: vertical; }
+        .instructions { background: rgba(69, 183, 209, 0.1); border: 1px solid #45b7d1; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .instructions h3 { color: #45b7d1; margin-top: 0; }
+        .instructions ol { padding-left: 20px; }
+        .instructions li { margin: 8px 0; line-height: 1.5; }
+        .landmark-debug { font-size: 11px; color: #888; font-family: monospace; max-height: 200px; overflow: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Gesture Calibration</h1>
+        <p class="subtitle">Collect landmark data for each pose at multiple distances</p>
+
+        <div class="instructions">
+            <h3>Instructions</h3>
+            <ol>
+                <li>Allow camera access when prompted</li>
+                <li>Select a <strong>distance</strong> (Near / Mid / Far) — hold your hand at that distance</li>
+                <li>Click a <strong>pose card</strong> to select it (it will highlight)</li>
+                <li>Hold the pose steady — press <strong>Space</strong> or click <strong>Capture</strong> to record a sample</li>
+                <li>Collect <strong>20+ samples per pose per distance</strong> (more = better)</li>
+                <li>Repeat for all 5 poses × 3 distances = 15 combinations</li>
+                <li>Click <strong>Export JSON</strong> to save the calibration data</li>
+            </ol>
+            <p><strong>Poses:</strong> Fist (all fingers curled) | Open Palm (all extended) | One Finger (index only) | Two Fingers (index+middle) | Three Fingers (index+middle+ring)</p>
+        </div>
+
+        <div class="video-wrap">
+            <video id="input_video" autoplay playsinline muted></video>
+            <canvas id="overlay"></canvas>
+        </div>
+
+        <div class="distance-selector" id="distanceSelector">
+            <button class="dist-btn" data-dist="near" onclick="selectDistance('near')">Near (~20cm)</button>
+            <button class="dist-btn active" data-dist="mid" onclick="selectDistance('mid')">Mid (~50cm)</button>
+            <button class="dist-btn" data-dist="far" onclick="selectDistance('far')">Far (~100cm)</button>
+        </div>
+
+        <div class="pose-grid" id="poseGrid">
+            <div class="pose-card" data-pose="fist" onclick="selectPose('fist')">
+                <div class="pose-icon">✊</div>
+                <div class="pose-name">Fist</div>
+                <div class="pose-count" id="count-fist">0 samples</div>
+            </div>
+            <div class="pose-card" data-pose="openPalm" onclick="selectPose('openPalm')">
+                <div class="pose-icon">🖐️</div>
+                <div class="pose-name">Open Palm</div>
+                <div class="pose-count" id="count-openPalm">0 samples</div>
+            </div>
+            <div class="pose-card" data-pose="oneFinger" onclick="selectPose('oneFinger')">
+                <div class="pose-icon">☝️</div>
+                <div class="pose-name">One Finger</div>
+                <div class="pose-count" id="count-oneFinger">0 samples</div>
+            </div>
+            <div class="pose-card" data-pose="twoFingers" onclick="selectPose('twoFingers')">
+                <div class="pose-icon">✌️</div>
+                <div class="pose-name">Two Fingers</div>
+                <div class="pose-count" id="count-twoFingers">0 samples</div>
+            </div>
+            <div class="pose-card" data-pose="threeFingers" onclick="selectPose('threeFingers')">
+                <div class="pose-icon">🤟</div>
+                <div class="pose-name">Three Fingers</div>
+                <div class="pose-count" id="count-threeFingers">0 samples</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="btnCapture" onclick="captureSample()" disabled>Capture Sample (Space)</button>
+            <button class="btn btn-secondary" onclick="clearCurrentPose()">Clear Current Pose</button>
+            <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
+        </div>
+
+        <div class="status">
+            <div><span class="label">Status: </span><span class="value" id="statusText">Initializing camera...</span></div>
+            <div><span class="label">Selected: </span><span class="value" id="selectedPose">None</span> @ <span class="value" id="selectedDist">Mid</span></div>
+            <div><span class="label">Total Samples: </span><span class="value" id="totalSamples">0</span></div>
+            <div class="progress"><div class="progress-bar" id="progressBar" style="width: 0%"></div></div>
+        </div>
+
+        <div class="export-area">
+            <h3>Export Data</h3>
+            <button class="btn btn-primary" onclick="exportJSON()">Export JSON</button>
+            <button class="btn btn-secondary" onclick="downloadJSON()">Download .json File</button>
+            <br><br>
+            <textarea id="exportOutput" placeholder="Exported JSON will appear here..." readonly></textarea>
+        </div>
+
+        <div class="landmark-debug" id="landmarkDebug"></div>
+    </div>
+
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <script src="./calibrate-gestures.js"></script>
+</body>
+</html>
