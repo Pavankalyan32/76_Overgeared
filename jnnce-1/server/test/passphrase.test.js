@@ -1,20 +1,20 @@
-'use strict';
-
 // The passphrase gate is installed at module load, so it needs its own file:
 // `node --test` runs each file in a separate process, which lets this one import
 // the server with MULTIPLAYER_PASSPHRASE set while the other suites see it unset.
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { io: connect } = require('socket.io-client');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { io as connect } from 'socket.io-client';
 
 const PHRASE = 'open-sesame';
 process.env.MULTIPLAYER_PASSPHRASE = PHRASE;
 
-const { server } = require('../index.js');
-
+let server;
 let url;
 
 test.before(async () => {
+  // Dynamic import after env var is set
+  const mod = await import('../index.js');
+  server = mod.server;
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   url = `http://127.0.0.1:${server.address().port}`;
 });

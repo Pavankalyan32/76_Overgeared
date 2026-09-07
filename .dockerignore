@@ -1,0 +1,49 @@
+# Dependencies
+node_modules
+jnnce-1/server/node_modules
+
+# Build outputs
+dist
+build
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Tests
+coverage
+*.test.js
+*.spec.js
+test/
+
+# Documentation
+*.md
+!README.md
+
+# Calibration scripts
+jnnce-1/scripts/
+
+# Source maps
+*.map
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/

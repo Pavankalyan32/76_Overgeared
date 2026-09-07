@@ -1,16 +1,14 @@
-'use strict';
-
 // Integration tests for the multiplayer relay (#8).
 //
 // The unit tests in api.test.js cover sanitizeState and room-id validation. These
 // drive real Socket.IO clients, because the property that matters, that two rooms
 // cannot see each other, only exists once the adapter and the join calls are
 // involved.
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { io: connect } = require('socket.io-client');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { io as connect } from 'socket.io-client';
 
-const { server, roomState } = require('../index.js');
+import { server, roomState } from '../index.js';
 
 let url;
 
