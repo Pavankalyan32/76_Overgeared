@@ -227,7 +227,19 @@
     {
       "imports": {
         "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+        "./gestures.js": "./gestures.js",
+        "./src/three/scene.js": "./src/three/scene.js",
+        "./src/three/models.js": "./src/three/models.js",
+        "./src/gestures/handlers.js": "./src/gestures/handlers.js",
+        "./src/gestures/mediapipe.js": "./src/gestures/mediapipe.js",
+        "./src/ui/sidebar.js": "./src/ui/sidebar.js",
+        "./src/ui/ai-chat.js": "./src/ui/ai-chat.js",
+        "./src/multiplayer/socket.js": "./src/multiplayer/socket.js",
+        "./src/recording/index.js": "./src/recording/index.js",
+        "./src/ar/index.js": "./src/ar/index.js",
+        "./src/errors/client.js": "./src/errors/client.js",
+        "./src/main.js": "./src/main.js"
       }
     }
     </script>
@@ -241,7 +253,7 @@
     <script src="/socket.io/socket.io.js"></script>
 
     <!-- App (as ES module for loaders/AR imports) -->
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./src/main.js"></script>
 </body>
 </html>
 

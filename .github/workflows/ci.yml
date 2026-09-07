@@ -48,15 +48,37 @@ jobs:
         with:
           node-version: '22'
 
-      # app.js is an ES module loaded straight into the browser with no bundler,
+      # All frontend ES modules are loaded straight into the browser with no bundler,
       # so nothing else would catch a parse error before a user hits it.
       # --check needs the .mjs extension to treat the file as a module.
       - name: Parse frontend ES modules
         run: |
-          cp jnnce-1/app.js "$RUNNER_TEMP/app.mjs"
-          node --check "$RUNNER_TEMP/app.mjs"
+          # Main entry point
+          cp jnnce-1/src/main.js "$RUNNER_TEMP/main.mjs"
+          node --check "$RUNNER_TEMP/main.mjs"
+          # Core modules
           cp jnnce-1/gestures.js "$RUNNER_TEMP/gestures.mjs"
           node --check "$RUNNER_TEMP/gestures.mjs"
+          cp jnnce-1/src/three/scene.js "$RUNNER_TEMP/scene.mjs"
+          node --check "$RUNNER_TEMP/scene.mjs"
+          cp jnnce-1/src/three/models.js "$RUNNER_TEMP/models.mjs"
+          node --check "$RUNNER_TEMP/models.mjs"
+          cp jnnce-1/src/gestures/handlers.js "$RUNNER_TEMP/handlers.mjs"
+          node --check "$RUNNER_TEMP/handlers.mjs"
+          cp jnnce-1/src/gestures/mediapipe.js "$RUNNER_TEMP/mediapipe.mjs"
+          node --check "$RUNNER_TEMP/mediapipe.mjs"
+          cp jnnce-1/src/ui/sidebar.js "$RUNNER_TEMP/sidebar.mjs"
+          node --check "$RUNNER_TEMP/sidebar.mjs"
+          cp jnnce-1/src/ui/ai-chat.js "$RUNNER_TEMP/ai-chat.mjs"
+          node --check "$RUNNER_TEMP/ai-chat.mjs"
+          cp jnnce-1/src/multiplayer/socket.js "$RUNNER_TEMP/socket.mjs"
+          node --check "$RUNNER_TEMP/socket.mjs"
+          cp jnnce-1/src/recording/index.js "$RUNNER_TEMP/recording.mjs"
+          node --check "$RUNNER_TEMP/recording.mjs"
+          cp jnnce-1/src/ar/index.js "$RUNNER_TEMP/ar.mjs"
+          node --check "$RUNNER_TEMP/ar.mjs"
+          cp jnnce-1/src/errors/client.js "$RUNNER_TEMP/errors.mjs"
+          node --check "$RUNNER_TEMP/errors.mjs"
 
       - name: Parse server entrypoint
         run: node --check jnnce-1/server/index.js
