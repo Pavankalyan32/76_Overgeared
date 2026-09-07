@@ -102,8 +102,120 @@ export function updateLockCenter(value) { lockCenter = value; }
 export function updateOrbitControls(controls) { orbitControls = controls; }
 export function updateFrameSkip(value) { frameSkip = value; }
 
+// Keyboard shortcuts handler
+function handleKeyboardShortcuts(e) {
+    // Ignore if typing in an input field
+    const activeEl = document.activeElement;
+    const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT' || activeEl.isContentEditable);
+    if (isInput && e.key !== 'Escape') return;
+    
+    // Don't trigger if modifier keys are held (except for specific shortcuts)
+    const hasCtrl = e.ctrlKey || e.metaKey;
+    const hasShift = e.shiftKey;
+    const hasAlt = e.altKey;
+    
+    switch (e.key) {
+        // Recording shortcuts
+        case 'r':
+        case 'R':
+            if (!hasCtrl && !hasAlt) {
+                e.preventDefault();
+                if (startRecordingFn) startRecordingFn();
+                if (ui.btnRecord) ui.btnRecord.disabled = true;
+                if (ui.btnStop) ui.btnStop.disabled = false;
+                if (ui.btnReplay) ui.btnReplay.disabled = true;
+                if (ui.btnClear) ui.btnClear.disabled = true;
+            }
+            break;
+        case 'p':
+        case 'P':
+            if (!hasCtrl && !hasAlt) {
+                e.preventDefault();
+                if (stopRecordingFn) stopRecordingFn();
+                if (ui.btnRecord) ui.btnRecord.disabled = false;
+                if (ui.btnStop) ui.btnStop.disabled = true;
+                const frames = getRecordingFramesFn ? getRecordingFramesFn() : 0;
+                if (ui.btnReplay) ui.btnReplay.disabled = frames === 0;
+                if (ui.btnClear) ui.btnClear.disabled = frames === 0;
+            }
+            break;
+        case 'c':
+        case 'C':
+            if (!hasCtrl && !hasAlt) {
+                e.preventDefault();
+                if (clearRecordingFn) clearRecordingFn();
+                if (ui.btnReplay) ui.btnReplay.disabled = true;
+                if (ui.btnClear) ui.btnClear.disabled = true;
+            }
+            break;
+            
+        // View shortcuts
+        case 'f':
+        case 'F':
+            if (!hasCtrl && !hasAlt) {
+                e.preventDefault();
+                const activeObj = dependencies.getActiveObject ? dependencies.getActiveObject() : null;
+                if (activeObj && fitCameraToObjectFn) fitCameraToObjectFn(activeObj, 1.8);
+            }
+            break;
+            
+        // Rotation shortcuts (arrow keys)
+        case 'ArrowLeft':
+            if (!hasCtrl && !hasAlt) {
+                e.preventDefault();
+                const targetRotation = dependencies.getTargetRotation ? dependencies.getTargetRotation() : { x: 0, y: 0 };
+                targetRotation.y += Math.PI * 0.05;
+                if (dependencies.setTargetRotation) dependencies.setTargetRotation(targetRotation);
+            }
+            break;
+        case 'ArrowRight':
+            if (!hasCtrl && !hasAlt) {
+                e.preventDefault();
+                const targetRotation = dependencies.getTargetRotation ? dependencies.getTargetRotation() : { x: 0, y: 0 };
+                targetRotation.y -= Math.PI * 0.05;
+                if (dependencies.setTargetRotation) dependencies.setTargetRotation(targetRotation);
+            }
+            break;
+        case 'ArrowUp':
+            if (!hasCtrl && !hasAlt) {
+                e.preventDefault();
+                if (orbitDistanceFn) orbitDistanceFn(0.9);
+            }
+            break;
+        case 'ArrowDown':
+            if (!hasCtrl && !hasAlt) {
+                e.preventDefault();
+                if (orbitDistanceFn) orbitDistanceFn(1.1);
+            }
+            break;
+            
+        // Gesture debug toggle
+        case ' ':
+            if (!hasCtrl && !hasAlt && !hasShift) {
+                e.preventDefault();
+                if (ui.toggleGestureDebug) {
+                    ui.toggleGestureDebug.checked = !ui.toggleGestureDebug.checked;
+                    featureFlags.gestureDebug = ui.toggleGestureDebug.checked;
+                    if (setFeatureFlagsFn) setFeatureFlagsFn(featureFlags);
+                }
+            }
+            break;
+            
+        // Escape - close dropdowns, stop recording, etc.
+        case 'Escape':
+            // Close any open dropdowns
+            document.querySelectorAll('details[open]').forEach(d => d.removeAttribute('open'));
+            // Blur active element
+            if (activeEl && activeEl.blur) activeEl.blur();
+            break;
+    }
+}
+
 // Bind all UI event listeners
 function bindUI() {
+    // Keyboard shortcuts
+    document.addEventListener('keydown', handleKeyboardShortcuts);
+    
     // Feature toggles
     ui.twoHand.addEventListener('change', (e) => {
         featureFlags.twoHand = e.target.checked;

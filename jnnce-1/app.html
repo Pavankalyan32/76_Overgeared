@@ -8,36 +8,36 @@
 </head>
 <body>
     <div id="app">
-        <nav class="navbar">
+        <nav class="navbar" role="navigation" aria-label="Main navigation">
             <div class="nav-brand">Gesture3D</div>
-            <div class="nav-status">
+            <div class="nav-status" aria-live="polite" aria-atomic="true">
                 <span>Gesture:</span> <strong id="gesture">None</strong>
             </div>
             <div class="nav-actions">
-                <a href="index.html" class="nav-btn" title="Tesseract Home" style="text-decoration: none; color: inherit;">🏠</a>
-                <button data-act="fit" class="nav-btn" title="Fit view to object">Fit</button>
-                <button data-act="zoom_in" class="nav-btn" title="Zoom in">+</button>
-                <button data-act="zoom_out" class="nav-btn" title="Zoom out">−</button>
-                <button data-act="surface" class="nav-btn" title="Zoom to surface">🔍</button>
+                <a href="index.html" class="nav-btn" aria-label="Go to Tesseract home page" style="text-decoration: none; color: inherit;">🏠</a>
+                <button data-act="fit" class="nav-btn" aria-label="Fit view to object (F)">Fit</button>
+                <button data-act="zoom_in" class="nav-btn" aria-label="Zoom in (Up arrow)">+</button>
+                <button data-act="zoom_out" class="nav-btn" aria-label="Zoom out (Down arrow)">−</button>
+                <button data-act="surface" class="nav-btn" aria-label="Zoom to surface">🔍</button>
             </div>
         </nav>
         
         <!-- Left Sidebar: AI Chat & Voice -->
-        <aside class="left-sidebar">
+        <aside class="left-sidebar" aria-label="AI Assistant">
             <div class="ai-header">
                 <div class="ai-title">
-                    <span class="ai-icon">🤖</span>
+                    <span class="ai-icon" aria-hidden="true">🤖</span>
                     <span>AI Assistant</span>
                 </div>
             </div>
             
-            <div class="ai-status" id="ai_status">
-                <span class="status-dot"></span>
+            <div class="ai-status" id="ai_status" role="status" aria-live="polite" aria-atomic="true">
+                <span class="status-dot" aria-hidden="true"></span>
                 <span class="status-text">Ready for real-time analysis</span>
             </div>
 
             <div class="ai-content" id="ai_content">
-                <div class="chat-messages" id="chat_messages">
+                <div class="chat-messages" id="chat_messages" role="log" aria-live="polite" aria-atomic="false" aria-label="Chat messages">
                     <div class="message ai-message">
                         <div class="message-content">
                             Hello! I'm your AI assistant. I can help you with 3D modeling, gesture controls, and answer questions about what you're working on. Click the eye button to let me see your screen, or ask me anything!
@@ -47,18 +47,19 @@
                 
                 <div class="chat-input-area">
                     <div class="input-group">
-                        <input type="text" id="chat_input" placeholder="Ask me anything... 🤔" />
-                        <button id="btn_send" class="send-btn">Send 🚀</button>
+                        <label for="chat_input" class="visually-hidden">Chat input</label>
+                        <input type="text" id="chat_input" placeholder="Ask me anything... 🤔" aria-label="Ask the AI assistant a question" />
+                        <button id="btn_send" class="send-btn" aria-label="Send message (Enter)">Send 🚀</button>
                     </div>
-                    <div class="voice-indicator" id="voice_indicator">
-                        <span class="pulse-dot"></span>
+                    <div class="voice-indicator" id="voice_indicator" aria-live="polite" aria-hidden="true">
+                        <span class="pulse-dot" aria-hidden="true"></span>
                         Listening...
                     </div>
-                    <div class="ai-toolbar">
-                        <button id="btn_screen_read" class="ai-btn" title="Read screen">👁️ Screen</button>
-                        <button id="btn_voice_toggle" class="ai-btn" title="Toggle voice">🎤 Voice</button>
-                        <button id="btn_refresh_screen" class="ai-btn" title="Refresh screen data">🔄 Refresh</button>
-                        <button id="btn_chat_toggle" class="ai-btn" title="Toggle chat">💬 Chat</button>
+                    <div class="ai-toolbar" role="group" aria-label="AI tools">
+                        <button id="btn_screen_read" class="ai-btn" aria-label="Analyze screen content (👁️ Screen)">👁️ Screen</button>
+                        <button id="btn_voice_toggle" class="ai-btn" aria-label="Toggle voice input (🎤 Voice)">🎤 Voice</button>
+                        <button id="btn_refresh_screen" class="ai-btn" aria-label="Refresh screen data (🔄 Refresh)">🔄 Refresh</button>
+                        <button id="btn_chat_toggle" class="ai-btn" aria-label="Toggle chat panel (💬 Chat)">💬 Chat</button>
                     </div>
                 </div>
             </div>
@@ -66,12 +67,12 @@
 
         <div id="scene"></div>
 
-        <aside class="sidebar">
+<aside class="sidebar" aria-label="Control panel">
             <div class="sidebar-header">
                 <h3>Controls</h3>
                                         <div class="header-buttons">
-                            <button id="btn_extend" class="extend-btn" title="Collapse sidebar">←</button>
-                            <button id="btn_collapse" class="collapse-btn" title="Collapse sidebar">−</button>
+                            <button id="btn_extend" class="extend-btn" aria-label="Expand sidebar" aria-expanded="false">←</button>
+                            <button id="btn_collapse" class="collapse-btn" aria-label="Collapse sidebar">−</button>
                         </div>
             </div>
             
@@ -79,21 +80,21 @@
                 <div class="section">
                     <div class="section-title">Camera & Tracking</div>
                     <div class="camera-panel">
-                        <div class="camera-feed">
-                            <video id="input_video" autoplay playsinline muted></video>
-                            <canvas id="overlay"></canvas>
+                        <div class="camera-feed" aria-label="Webcam feed with hand tracking overlay">
+                            <video id="input_video" autoplay playsinline muted aria-hidden="true"></video>
+                            <canvas id="overlay" aria-hidden="true"></canvas>
                             <div class="camera-overlay">
-                                <div class="tracking-status">
-                                    <span class="status-dot" id="tracking_dot"></span>
+                                <div class="tracking-status" role="status" aria-live="polite" aria-atomic="true">
+                                    <span class="status-dot" id="tracking_dot" aria-hidden="true"></span>
                                     <span id="tracking_text">No hands detected</span>
                                 </div>
-                                <div class="fps-counter" id="fps_counter">0 FPS</div>
+                                <div class="fps-counter" id="fps_counter" aria-hidden="true">0 FPS</div>
                             </div>
                         </div>
                         <div class="camera-controls">
                             <div class="row">
-                                <label><input type="checkbox" id="toggle_tracking" checked /> Show landmarks</label>
-                                <label><input type="checkbox" id="toggle_gesture_debug" /> Debug mode</label>
+                                <label><input type="checkbox" id="toggle_tracking" checked aria-label="Show hand landmarks on video" /> Show landmarks</label>
+                                <label><input type="checkbox" id="toggle_gesture_debug" aria-label="Enable gesture debug mode" /> Debug mode</label>
                             </div>
                         </div>
                     </div>
@@ -102,21 +103,21 @@
                 <div class="section">
                     <div class="section-title">Navigation</div>
                     <div class="row">
-                        <label><input type="checkbox" id="toggle_lock_center" checked /> Lock center</label>
+                        <label><input type="checkbox" id="toggle_lock_center" checked aria-label="Lock object to center" /> Lock center</label>
                     </div>
                     <div class="row">
-                        <button data-act="zoom_out">Zoom out</button>
-                        <button data-act="zoom_in">Zoom in</button>
-                        <button data-act="center" class="ghost">Center Object</button>
-                        <button data-act="reset_camera" class="ghost">Reset Camera</button>
+                        <button data-act="zoom_out" aria-label="Zoom out (Down arrow)">Zoom out</button>
+                        <button data-act="zoom_in" aria-label="Zoom in (Up arrow)">Zoom in</button>
+                        <button data-act="center" class="ghost" aria-label="Center object (C)">Center Object</button>
+                        <button data-act="reset_camera" class="ghost" aria-label="Reset camera position">Reset Camera</button>
                     </div>
                 </div>
 
                 <div class="section">
                     <div class="section-title">Model</div>
                     <div class="row">
-                        <label>Choose:</label>
-                        <select id="model_select">
+                        <label for="model_select">Choose:</label>
+                        <select id="model_select" aria-label="Select 3D model">
                             <option value="cube">Cube</option>
                             <option value="earth">Earth (Textured)</option>
                             <option value="sphere">Sphere</option>
@@ -135,13 +136,13 @@
                             <option value="robot">Robot (GLTF)</option>
                             <option value="custom">Custom (current)</option>
                         </select>
-                        <button id="btn_reset_models" class="ghost" title="Reset to default cube">Reset</button>
+                        <button id="btn_reset_models" class="ghost" aria-label="Reset to default cube">Reset</button>
                     </div>
                     <div class="row">
-                        <label>Scale: <span id="scale_value">1.0</span>x</label>
-                        <input type="range" min="0.05" max="10" step="0.05" id="scale_slider" />
-                        <input type="number" id="scale_number" min="0.05" max="10" step="0.05" value="1.0" />
-                        <button data-act="fit" class="ghost">Fit view</button>
+                        <label for="scale_slider">Scale: <span id="scale_value">1.0</span>x</label>
+                        <input type="range" min="0.05" max="10" step="0.05" id="scale_slider" aria-label="Model scale" />
+                        <input type="number" min="0.05" max="10" step="0.05" id="scale_number" value="1.0" aria-label="Model scale (numeric)" />
+                        <button data-act="fit" class="ghost" aria-label="Fit view to object (F)">Fit view</button>
                     </div>
                 </div>
 
@@ -149,66 +150,65 @@
                     <div class="section-title">Import</div>
                     <div class="row">
                         <div class="file-upload">
-                            <input type="file" id="file_input" accept=".glb,.gltf,.obj,.mtl,.stl" multiple />
+                            <input type="file" id="file_input" accept=".glb,.gltf,.obj,.mtl,.stl" multiple aria-label="Upload 3D model files" />
                             <label for="file_input" class="file-label">Choose 3D files (.glb, .gltf, .obj, .stl) - OBJ files work with or without MTL materials</label>
                         </div>
                     </div>
                     <div class="row">
-                        <input type="url" id="url_input" placeholder="https://... .glb/.gltf/.obj/.stl" />
-                        <button id="btn_load_url">Load URL</button>
+                        <label for="url_input" class="visually-hidden">Model URL</label>
+                        <input type="url" id="url_input" placeholder="https://... .glb/.gltf/.obj/.stl" aria-label="Load model from URL" />
+                        <button id="btn_load_url" aria-label="Load model from URL">Load URL</button>
                     </div>
                     <div class="row">
-                        <div class="loading-indicator" id="loading_indicator" style="display: none;">
-                            <span class="loading-spinner"></span>
+                        <div class="loading-indicator" id="loading_indicator" style="display: none;" aria-live="polite" aria-hidden="true">
+                            <span class="loading-spinner" aria-hidden="true"></span>
                             <span>Loading model...</span>
                         </div>
                     </div>
                 </div>
 
-
-
                 <div class="section">
                     <div class="section-title">Gestures</div>
                     <div class="row">
-                        <label title="Tracks a second hand. Costs frame rate, so off by default."><input type="checkbox" id="toggle_twohand" /> Two-hand scale</label>
+                        <label><input type="checkbox" id="toggle_twohand" aria-label="Enable two-hand scale gesture (costs frame rate)" /> Two-hand scale</label>
                     </div>
                     <div class="row">
-                        <label>Frame skip: <span id="frame_skip_value">0</span></label>
-                        <input type="range" min="0" max="4" step="1" id="frame_skip" />
+                        <label for="frame_skip">Frame skip: <span id="frame_skip_value">0</span></label>
+                        <input type="range" min="0" max="4" step="1" id="frame_skip" aria-label="Frame skip for performance" />
                     </div>
                 </div>
 
                 <div class="section">
                     <div class="section-title">Display</div>
                     <div class="row">
-                        <label><input type="checkbox" id="toggle_hologram" /> Hologram mode</label>
-                        <label><input type="checkbox" id="toggle_multiplayer" /> Multiplayer</label>
+                        <label><input type="checkbox" id="toggle_hologram" aria-label="Enable hologram mode" /> Hologram mode</label>
+                        <label><input type="checkbox" id="toggle_multiplayer" aria-label="Enable multiplayer synchronization" /> Multiplayer</label>
                     </div>
                     <div class="row">
                         <label for="room_id">Room:</label>
                         <input type="text" id="room_id" readonly aria-describedby="room_status"
-                               title="Anyone opening this page with the same room id shares the object" />
-                        <button id="btn_copy_room" class="ghost" title="Copy a link to this room">Copy link</button>
+                               aria-label="Multiplayer room ID (share this link to invite others)" />
+                        <button id="btn_copy_room" class="ghost" aria-label="Copy room link to clipboard">Copy link</button>
                     </div>
                     <div class="row">
-                        <small id="room_status" role="status">Not connected</small>
+                        <small id="room_status" role="status" aria-live="polite" aria-atomic="true">Not connected</small>
                     </div>
                     <div class="row" id="ar_container"></div>
                 </div>
 
                 <div class="section">
                     <div class="section-title">Recording</div>
-                    <div class="row">
-                        <button id="btn_record">Record</button>
-                        <button id="btn_stop" disabled>Stop</button>
-                        <button id="btn_replay" disabled>Replay</button>
-                        <button id="btn_clear" disabled>Clear</button>
+                    <div class="row" role="group" aria-label="Recording controls">
+                        <button id="btn_record" aria-label="Start recording (R)">Record</button>
+                        <button id="btn_stop" disabled aria-label="Stop recording (P)">Stop</button>
+                        <button id="btn_replay" disabled aria-label="Replay recording">Replay</button>
+                        <button id="btn_clear" disabled aria-label="Clear recording (C)">Clear</button>
                     </div>
                 </div>
             </div>
         </aside>
 
-        <div class="hints">
+        <div class="hints" aria-label="Gesture and keyboard reference">
             <ul>
                 <li><strong>Pinch</strong>: scale object</li>
                 <li><strong>Open palm</strong>: translate (drag)</li>
@@ -219,6 +219,18 @@
                 <li><strong>Fist</strong>: zoom in</li>
                 <li><strong>Two hands</strong>: distance → scale, midpoint → translate (needs "Two-hand scale")</li>
             </ul>
+            <details>
+                <summary>Keyboard shortcuts</summary>
+                <ul>
+                    <li><kbd>R</kbd> Record</li>
+                    <li><kbd>P</kbd> Stop recording</li>
+                    <li><kbd>C</kbd> Clear recording</li>
+                    <li><kbd>F</kbd> Fit view to object</li>
+                    <li><kbd>←/→</kbd> Rotate object</li>
+                    <li><kbd>↑/↓</kbd> Zoom in/out</li>
+                    <li><kbd>Space</kbd> Toggle gesture debug</li>
+                </ul>
+            </details>
         </div>
     </div>
 
